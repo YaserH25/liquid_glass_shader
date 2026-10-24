@@ -20,6 +20,7 @@ void main() {
     expect(LiquidTabBarMetrics.stacked.thickness, 62);
     expect(LiquidTabBarMetrics.inline.thickness, 46);
     expect(LiquidTabBarMetrics.compactInline.thickness, 44);
+    expect(LiquidTabBarMetrics.vertical.thickness, 48);
   });
 
   test('motion compares its springs by value', () {

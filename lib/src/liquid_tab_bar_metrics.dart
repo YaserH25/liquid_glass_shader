@@ -5,7 +5,8 @@ import 'package:flutter/painting.dart';
 ///
 /// The presets carry the sizes of the system tab bar on iOS 27, measured on
 /// the simulators (Apple publishes none): [stacked] for an iPhone held
-/// upright, [inline] for iPad, [compactInline] for an iPhone held sideways.
+/// upright, [inline] for iPad, [compactInline] for an iPhone held sideways,
+/// [vertical] for the side of the iPhone Duo's cover screen.
 /// Each only sets sizes; draw the tabs to match (icon above label, or beside
 /// it) in the bar's `tabBuilder`.
 @immutable
@@ -35,6 +36,13 @@ class LiquidTabBarMetrics {
   static const LiquidTabBarMetrics compactInline = LiquidTabBarMetrics(
     thickness: 44,
     tabExtent: 78,
+  );
+
+  /// A bar standing at the side of the screen, as on the iPhone Duo's cover
+  /// screen: 48 wide, each tab 51 long. Use it with `axis: Axis.vertical`.
+  static const LiquidTabBarMetrics vertical = LiquidTabBarMetrics(
+    thickness: 48,
+    tabExtent: 51,
   );
 
   /// The whole bar across, glass included: the height of a bar along the

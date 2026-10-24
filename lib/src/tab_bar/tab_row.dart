@@ -2,13 +2,15 @@ import 'package:flutter/widgets.dart';
 
 import '../liquid_tab_builder.dart';
 
-/// The tabs of a tab bar side by side, each in an equal slot.
+/// The tabs of a tab bar one after another along [axis], each in an equal
+/// slot.
 class TabRow extends StatelessWidget {
   /// The bar's own tabs: [active] drawn as current, and each tab a button
   /// for screen readers that calls [onSemanticsTap].
   const TabRow({
     super.key,
     required this.count,
+    required this.axis,
     required this.tabBuilder,
     required this.selected,
     required int this.active,
@@ -20,6 +22,7 @@ class TabRow extends StatelessWidget {
   const TabRow.magnified({
     super.key,
     required this.count,
+    required this.axis,
     required this.tabBuilder,
   }) : selected = -1,
        active = null,
@@ -27,6 +30,9 @@ class TabRow extends StatelessWidget {
 
   /// How many tabs there are.
   final int count;
+
+  /// The direction the tabs follow each other in.
+  final Axis axis;
 
   /// Draws each tab.
   final LiquidTabBuilder tabBuilder;
@@ -43,7 +49,8 @@ class TabRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onTap = onSemanticsTap;
-    return Row(
+    return Flex(
+      direction: axis,
       children: [
         for (var i = 0; i < count; i++)
           Expanded(

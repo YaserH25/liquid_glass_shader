@@ -34,10 +34,14 @@ import 'tab_bar/tab_row.dart';
 /// * A change of [selectedIndex] from elsewhere slides the lens, stretched
 ///   along its path in proportion to its speed.
 ///
-/// The bar takes the whole width it is given and [metrics.thickness] of
-/// height. Its glass hugs the tabs, at [LiquidTabBarMetrics.tabExtent] each,
-/// placed by [alignment], unless there is not room, when it fills the width;
-/// touches beside the glass reach the page under the bar.
+/// The bar takes the whole length it is given along its [axis], and
+/// [LiquidTabBarMetrics.thickness] across it: a horizontal bar is that
+/// tall, a vertical one, standing at the side of the screen as on the
+/// iPhone Duo's cover screen, that wide. Its glass hugs the tabs, at
+/// [LiquidTabBarMetrics.tabExtent] each, placed by [alignment], unless there
+/// is not room, when it fills the length; touches beside the glass reach the
+/// page under the bar. Where the bar sits on the screen is the app's to
+/// choose.
 ///
 /// Reduced motion keeps the lens flat and moves it from tab to tab at once.
 ///
@@ -56,6 +60,7 @@ class LiquidTabBar extends StatefulWidget {
     required this.tabBuilder,
     required this.selectedIndex,
     required this.onSelected,
+    this.axis = Axis.horizontal,
     this.metrics = LiquidTabBarMetrics.stacked,
     this.motion,
     this.lens = LiquidTabBarLens.standard,
@@ -69,7 +74,7 @@ class LiquidTabBar extends StatefulWidget {
     this.onTick = selectionClick,
     this.shareBackdrop = false,
     this.minimized = false,
-    this.minimizedAlignment = AlignmentDirectional.bottomStart,
+    this.minimizedAlignment,
     this.onExpand,
     this.minimizedBuilder,
   }) : assert(tabCount > 0),
@@ -86,6 +91,12 @@ class LiquidTabBar extends StatefulWidget {
 
   /// Called with the chosen tab on release, or on a screen-reader tap.
   final ValueChanged<int> onSelected;
+
+  /// The direction the tabs follow each other in: horizontal by default, or
+  /// vertical for a bar standing at the side of the screen, as on the
+  /// iPhone Duo's cover screen. A vertical bar runs from the top in either
+  /// text direction, as Apple's does.
+  final Axis axis;
 
   /// The bar's sizes: [LiquidTabBarMetrics.stacked] by default.
   final LiquidTabBarMetrics metrics;
@@ -141,9 +152,10 @@ class LiquidTabBar extends StatefulWidget {
   /// full bar.
   final bool minimized;
 
-  /// Where the pill sits: at the bottom of the start edge by default, as on
-  /// iOS.
-  final AlignmentGeometry minimizedAlignment;
+  /// Where the pill sits; none puts it where the bar starts: at the bottom
+  /// of the start edge of a horizontal bar, as on iOS, or at the top of a
+  /// vertical one.
+  final AlignmentGeometry? minimizedAlignment;
 
   /// Called when the minimized pill is tapped; expand the bar here.
   final VoidCallback? onExpand;
@@ -209,8 +221,11 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
   TabBarGeometry get _geometry => TabBarGeometry(
     count: _count,
+    axis: widget.axis,
     rtl: Directionality.of(context) == TextDirection.rtl,
   );
+
+  bool get _horizontal => widget.axis == Axis.horizontal;
 
   @override
   void initState() {
@@ -257,9 +272,9 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   void didUpdateWidget(LiquidTabBar old) {
     super.didUpdateWidget(old);
     _lens.config = _motion;
-    if (old.tabCount != widget.tabCount) {
+    if (old.tabCount != widget.tabCount || old.axis != widget.axis) {
       // Slots are counted from the physical left, so in RTL the same tab
-      // sits in a different slot once the count changes.
+      // sits in a different slot once the count changes, or the bar turns.
       _lens.jumpTo(_geometry.flip(widget.selectedIndex).toDouble());
     } else if (_pointer == null && old.selectedIndex != widget.selectedIndex) {
       _settleOn(widget.selectedIndex);
@@ -348,6 +363,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final tabs = RepaintBoundary(
       child: TabRow(
         count: _count,
+        axis: widget.axis,
         tabBuilder: widget.tabBuilder,
         selected: widget.selectedIndex,
         active: _hovered ?? widget.selectedIndex,
@@ -355,7 +371,11 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       ),
     );
     final lensTabs = RepaintBoundary(
-      child: TabRow.magnified(count: _count, tabBuilder: widget.tabBuilder),
+      child: TabRow.magnified(
+        count: _count,
+        axis: widget.axis,
+        tabBuilder: widget.tabBuilder,
+      ),
     );
     // Only while the pill shows or is shrinking away.
     final pill = _minimizeTarget == 1 || _minimize.value > 0
@@ -385,56 +405,68 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final metrics = _metrics;
     final direction = Directionality.of(context);
     final barAlignment = widget.alignment.resolve(direction);
-    final pillAlignment = widget.minimizedAlignment.resolve(direction);
+    final pillAlignment =
+        (widget.minimizedAlignment ??
+                (_horizontal
+                    ? AlignmentDirectional.bottomStart
+                    : Alignment.topCenter))
+            .resolve(direction);
     final pillSize = metrics.minimizedSize ?? metrics.thickness;
+    // A size [length] along the bar and [across] it.
+    Size oriented(double length, double across) =>
+        _horizontal ? Size(length, across) : Size(across, length);
 
     // The bar keeps its whole box, so the page under it never moves; only
     // the glass in it hugs the tabs or shrinks into the pill, and the box
     // around the glass takes no touches.
     return LayoutBuilder(
       builder: (context, constraints) {
+        final available = _horizontal
+            ? constraints.maxWidth
+            : constraints.maxHeight;
         final hug = _count * metrics.tabExtent + 2 * metrics.inset;
-        final length = math.min(constraints.maxWidth, hug);
+        final length = math.min(available, hug);
         assert(
           length.isFinite,
           'A LiquidTabBar that fills (an infinite tabExtent) needs a '
-          'bounded width.',
+          'bounded length along its axis.',
         );
         final box =
             Offset.zero &
-            Size(
-              constraints.hasBoundedWidth ? constraints.maxWidth : length,
+            oriented(
+              available.isFinite ? available : length,
               metrics.thickness,
             );
-        final bar = barAlignment.inscribe(Size(length, metrics.thickness), box);
-        final shrunk = pillAlignment.inscribe(Size.square(pillSize), box);
-        final glass = _glass(
-          tabs,
-          lensTabs,
-          pill,
-          row: Size(
-            length - 2 * metrics.inset,
-            metrics.thickness - 2 * metrics.inset,
-          ),
-          refracts: refracts,
-          pillAlignment: pillAlignment,
-          pillSize: pillSize,
+        final bar = barAlignment.inscribe(
+          oriented(length, metrics.thickness),
+          box,
         );
+        final shrunk = pillAlignment.inscribe(Size.square(pillSize), box);
         return SizedBox.fromSize(
           size: box.size,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              AnimatedBuilder(
-                animation: _minimize,
-                child: glass,
-                builder: (context, glass) => Positioned.fromRect(
-                  rect: Rect.lerp(
-                    bar,
-                    shrunk,
-                    _minimize.value.clamp(0.0, 1.0),
-                  )!,
-                  child: glass!,
+              PositionedTransition(
+                rect: _minimize
+                    .drive(_unitInterval)
+                    .drive(
+                      RelativeRectTween(
+                        begin: RelativeRect.fromSize(bar, box.size),
+                        end: RelativeRect.fromSize(shrunk, box.size),
+                      ),
+                    ),
+                child: _glass(
+                  tabs,
+                  lensTabs,
+                  pill,
+                  row: oriented(
+                    length - 2 * metrics.inset,
+                    metrics.thickness - 2 * metrics.inset,
+                  ),
+                  refracts: refracts,
+                  pillAlignment: pillAlignment,
+                  pillSize: pillSize,
                 ),
               ),
             ],
@@ -443,6 +475,12 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       },
     );
   }
+
+  /// The minimize spring, which overshoots, held between bar and pill.
+  static const Animatable<double> _unitInterval = Animatable.fromCallback(
+    _toUnit,
+  );
+  static double _toUnit(double value) => value.clamp(0.0, 1.0);
 
   /// The lens in a [row], where it is this frame.
   Rect _lensIn(Size row) => _geometry.lensRect(
@@ -493,7 +531,9 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                       // shrinks over it towards the pill, so the tabs never
                       // squeeze.
                       child: OverflowBox(
-                        alignment: Alignment(pillAlignment.x, 0),
+                        alignment: _horizontal
+                            ? Alignment(pillAlignment.x, 0)
+                            : Alignment(0, pillAlignment.y),
                         minWidth: row.width,
                         maxWidth: row.width,
                         minHeight: row.height,
@@ -541,10 +581,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                 child: ExcludeSemantics(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final row = Size(
-                        constraints.maxWidth,
-                        _metrics.thickness - 2 * inset,
-                      );
+                      // The glass less its inset: the row of tabs.
+                      final row = constraints.biggest;
                       return AnimatedBuilder(
                         animation: _lensMoves,
                         builder: (context, _) {

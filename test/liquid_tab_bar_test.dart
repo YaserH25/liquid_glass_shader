@@ -644,6 +644,111 @@ void main() {
     });
   });
 
+  group('vertical', () {
+    /// A column of four tabs in a 408-high space.
+    Future<List<int>> pumpColumn(
+      WidgetTester tester, {
+      int selected = 0,
+      TextDirection direction = TextDirection.ltr,
+      LiquidTabBarMetrics metrics = _metrics,
+      bool minimized = false,
+    }) async {
+      final selections = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: direction,
+            child: Center(
+              child: SizedBox(
+                height: 408,
+                child: LiquidTabBar(
+                  axis: Axis.vertical,
+                  tabCount: 4,
+                  tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
+                  selectedIndex: selected,
+                  metrics: metrics,
+                  minimized: minimized,
+                  onSelected: selections.add,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      return selections;
+    }
+
+    Rect bar(WidgetTester tester) => tester.getRect(find.byType(LiquidTabBar));
+    Rect glass(WidgetTester tester) =>
+        tester.getRect(find.byType(GlassSurface));
+
+    testWidgets('stands as a column, its tabs from the top in either '
+        'direction', (tester) async {
+      for (final direction in TextDirection.values) {
+        await pumpColumn(tester, direction: direction);
+        await tester.pumpAndSettle();
+        expect(glass(tester).size, const Size(76, 408));
+        final centres = [for (var i = 0; i < 4; i++) tester.getCenter(_tab(i))];
+        for (var i = 1; i < 4; i++) {
+          expect(centres[i].dy - centres[i - 1].dy, 100);
+          expect(centres[i].dx, centres[0].dx);
+        }
+        expect(tester.getCenter(_restingLens), centres[0]);
+      }
+    });
+
+    testWidgets('a finger drags the lens down and selects on release', (
+      tester,
+    ) async {
+      final selections = await pumpColumn(tester);
+      final gesture = await tester.startGesture(tester.getCenter(_tab(0)));
+      await _advance(tester, 100);
+      await gesture.moveTo(tester.getCenter(_tab(2)));
+      await _advance(tester, 300);
+      expect(
+        tester.getCenter(_liftedLens).dy,
+        closeTo(tester.getCenter(_tab(2)).dy, 1),
+      );
+      expect(selections, isEmpty);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(selections, [2]);
+      expect(tester.getCenter(_restingLens), tester.getCenter(_tab(2)));
+    });
+
+    testWidgets('a slide draws the lens out down the column', (tester) async {
+      await pumpColumn(tester);
+      await tester.pumpAndSettle();
+      await pumpColumn(tester, selected: 3);
+      var longest = 0.0;
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 8));
+        longest = math.max(longest, tester.getRect(_restingLens).height);
+      }
+      expect(longest, greaterThan(110));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(_restingLens).height, 100);
+    });
+
+    testWidgets('hugs its tabs, and minimizes into a pill at the top', (
+      tester,
+    ) async {
+      await pumpColumn(tester, metrics: LiquidTabBarMetrics.stacked);
+      await tester.pumpAndSettle();
+      expect(glass(tester).height, 4 * 90 + 2 * 4);
+      expect(glass(tester).center, bar(tester).center);
+
+      await pumpColumn(
+        tester,
+        metrics: LiquidTabBarMetrics.stacked,
+        minimized: true,
+      );
+      await tester.pumpAndSettle();
+      expect(glass(tester).size, const Size.square(62));
+      expect(glass(tester).topCenter, bar(tester).topCenter);
+    });
+  });
+
   group('rebuilds', () {
     // A rebuild of the bar would hand the glass a new widget; the same
     // instance frame after frame means only the lens was rebuilt.
