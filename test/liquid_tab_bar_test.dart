@@ -749,6 +749,41 @@ void main() {
     });
   });
 
+  testWidgets('large text scales down to fit its slot, never overflowing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(3)),
+          child: Center(
+            child: SizedBox(
+              width: 408,
+              child: LiquidTabBar(
+                tabCount: 4,
+                tabBuilder: (_, i, _) => Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [const Icon(Icons.star), Text('ABCD'[i])],
+                ),
+                selectedIndex: 0,
+                metrics: LiquidTabBarMetrics.compactInline,
+                onSelected: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    // The label sits inside the row: the bar less its inset.
+    final row = tester.getRect(find.byType(GlassSurface)).deflate(4);
+    final label = tester.getRect(
+      find.descendant(of: _tab(0), matching: find.text('A')),
+    );
+    expect(row.top, lessThanOrEqualTo(label.top));
+    expect(row.bottom, greaterThanOrEqualTo(label.bottom));
+  });
+
   group('rebuilds', () {
     // A rebuild of the bar would hand the glass a new widget; the same
     // instance frame after frame means only the lens was rebuilt.

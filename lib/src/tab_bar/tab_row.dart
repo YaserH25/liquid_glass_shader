@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../liquid_tab_builder.dart';
+import 'fitted_tab.dart';
 
 /// The tabs of a tab bar one after another along [axis], each in an equal
 /// slot.
@@ -51,18 +52,22 @@ class TabRow extends StatelessWidget {
     final onTap = onSemanticsTap;
     return Flex(
       direction: axis,
+      // Each tab gets its whole slot.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (var i = 0; i < count; i++)
           Expanded(
             child: onTap == null
-                ? tabBuilder(context, i, true)
+                ? FittedTab(child: tabBuilder(context, i, true))
                 : Semantics(
                     key: ValueKey('liquid_tab_$i'),
                     container: true,
                     button: true,
                     selected: i == selected,
                     onTap: () => onTap(i),
-                    child: tabBuilder(context, i, i == active),
+                    child: FittedTab(
+                      child: tabBuilder(context, i, i == active),
+                    ),
                   ),
           ),
       ],
