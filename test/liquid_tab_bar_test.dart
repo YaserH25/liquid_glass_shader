@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show DisplayFeature, DisplayFeatureState, DisplayFeatureType;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -901,6 +902,87 @@ void main() {
     );
     expect(row.top, lessThanOrEqualTo(label.top));
     expect(row.bottom, greaterThanOrEqualTo(label.bottom));
+  });
+
+  group('folds', () {
+    // A hinge down the middle of the 800-wide test screen.
+    const crease = Rect.fromLTRB(380, 0, 420, 600);
+
+    /// A 600-wide bar centred along the bottom of the screen.
+    Future<void> pumpOverFold(
+      WidgetTester tester, {
+      AlignmentGeometry alignment = Alignment.center,
+      DisplayFeatureType type = DisplayFeatureType.hinge,
+      DisplayFeatureState state = DisplayFeatureState.unknown,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: const Size(800, 600),
+              displayFeatures: [
+                DisplayFeature(bounds: crease, type: type, state: state),
+              ],
+            ),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(
+                width: 600,
+                child: LiquidTabBar(
+                  tabCount: 4,
+                  tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
+                  selectedIndex: 0,
+                  alignment: alignment,
+                  onSelected: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Rect glass(WidgetTester tester) =>
+        tester.getRect(find.byType(GlassSurface));
+
+    void expectTabsClear(WidgetTester tester) {
+      for (var i = 0; i < 4; i++) {
+        expect(tester.getRect(_tab(i)).overlaps(crease), isFalse);
+      }
+    }
+
+    testWidgets('keeps a centred bar to the start side of a hinge', (
+      tester,
+    ) async {
+      await pumpOverFold(tester);
+      // The halves are even, 280 each: too short to hug four 90 tabs.
+      expect(glass(tester), const Rect.fromLTRB(100, 538, 380, 600));
+      expectTabsClear(tester);
+    });
+
+    testWidgets('keeps an end-aligned bar to the end side', (tester) async {
+      await pumpOverFold(tester, alignment: AlignmentDirectional.centerEnd);
+      expect(glass(tester).left, 420);
+      expectTabsClear(tester);
+    });
+
+    testWidgets('steps off a half-open fold, but not a flat one', (
+      tester,
+    ) async {
+      await pumpOverFold(
+        tester,
+        type: DisplayFeatureType.fold,
+        state: DisplayFeatureState.postureHalfOpened,
+      );
+      expect(glass(tester).right, lessThanOrEqualTo(380));
+      await pumpOverFold(
+        tester,
+        type: DisplayFeatureType.fold,
+        state: DisplayFeatureState.postureFlat,
+      );
+      expect(glass(tester).center.dx, 400);
+    });
   });
 
   group('rebuilds', () {

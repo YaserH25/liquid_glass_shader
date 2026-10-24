@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart' show CupertinoTheme;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'glass_look.dart';
@@ -19,6 +20,7 @@ import 'tab_bar/lens_motion.dart';
 import 'tab_bar/lifted_lens.dart';
 import 'tab_bar/minimized_pill.dart';
 import 'tab_bar/resting_lens_row.dart';
+import 'tab_bar/separating_fold.dart';
 import 'tab_bar/springs.dart';
 import 'tab_bar/tab_bar_geometry.dart';
 import 'tab_bar/tab_row.dart';
@@ -504,6 +506,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     // A size [length] along the bar and [across] it.
     Size oriented(double length, double across) =>
         _horizontal ? Size(length, across) : Size(across, length);
+    final folds = MediaQuery.displayFeaturesOf(context);
 
     // The bar keeps its whole box, so the page under it never moves; only
     // the glass in it hugs the tabs or shrinks into the pill, and the box
@@ -514,23 +517,23 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             ? constraints.maxWidth
             : constraints.maxHeight;
         final hug = _count * metrics.tabExtent + 2 * metrics.inset;
-        final length = math.min(available, hug);
+        final box =
+            Offset.zero &
+            oriented(available.isFinite ? available : hug, metrics.thickness);
+        if (folds.isNotEmpty) _checkFoldsAfterFrame();
+        // The glass stays on one side of a fold across the bar.
+        final room = folds.isEmpty ? box : _clearOfFolds ?? box;
+        final length = math.min(_horizontal ? room.width : room.height, hug);
         assert(
           length.isFinite,
           'A LiquidTabBar that fills (an infinite tabExtent) needs a '
           'bounded length along its axis.',
         );
-        final box =
-            Offset.zero &
-            oriented(
-              available.isFinite ? available : length,
-              metrics.thickness,
-            );
         final bar = barAlignment.inscribe(
           oriented(length, metrics.thickness),
-          box,
+          room,
         );
-        final shrunk = pillAlignment.inscribe(Size.square(pillSize), box);
+        final shrunk = pillAlignment.inscribe(Size.square(pillSize), room);
         return SizedBox.fromSize(
           size: box.size,
           child: Stack(
@@ -563,6 +566,42 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         );
       },
     );
+  }
+
+  /// The part of the bar's box clear of a separating fold or hinge across
+  /// it, or null when none crosses it.
+  ///
+  /// Where the bar is on screen is known only after layout, so it is
+  /// measured after the frame, and only while the screen has folds at all.
+  Rect? _clearOfFolds;
+  bool _foldCheckWanted = false;
+
+  void _checkFoldsAfterFrame() {
+    if (_foldCheckWanted) return;
+    _foldCheckWanted = true;
+    SchedulerBinding.instance.addPostFrameCallback(_checkFolds);
+  }
+
+  void _checkFolds(Duration _) {
+    _foldCheckWanted = false;
+    if (!mounted) return;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final toScreen = box.getTransformTo(null);
+    final toLocal = Matrix4.tryInvert(toScreen);
+    final direction = Directionality.of(context);
+    final alignment = widget.alignment.resolve(direction);
+    final onScreen = clearOfFolds(
+      MatrixUtils.transformRect(toScreen, Offset.zero & box.size),
+      MediaQuery.displayFeaturesOf(context),
+      axis: widget.axis,
+      toward: _horizontal ? alignment.x : alignment.y,
+      rtl: direction == TextDirection.rtl,
+    );
+    final clear = onScreen == null || toLocal == null
+        ? null
+        : MatrixUtils.transformRect(toLocal, onScreen);
+    if (clear != _clearOfFolds) setState(() => _clearOfFolds = clear);
   }
 
   /// The minimize spring, which overshoots, held between bar and pill.
