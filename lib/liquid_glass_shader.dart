@@ -15,3 +15,4 @@ export 'src/guard_frames.dart' show GuardFrame;
 export 'src/liquid_glass_shader_loader.dart';
 export 'src/liquid_tab_bar.dart';
 export 'src/liquid_tab_bar_style.dart';
+export 'src/liquid_tab_builder.dart';
