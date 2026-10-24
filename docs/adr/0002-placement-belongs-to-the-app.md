@@ -1,0 +1,3 @@
+# Placement belongs to the app; the tab bar owns only its own box
+
+The tab bar never decides where on the screen it sits (at the bottom on iPhone, at the top on iPad, as a column at the side on the iPhone Duo's cover screen) or when to give way to a sidebar or rail. Apple and Material both make that the app's choice by size class, and Flutter exposes no size class for a package to read. Inside the box it is given, the bar does the rest itself: it hugs its tabs, aligns itself, and lays itself out on one side of a separating fold so no tab sits on it. The example carries a short adaptive function that apps copy, rather than the package shipping breakpoints that would be wrong for some of them.

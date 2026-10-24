@@ -10,6 +10,24 @@ topics: [glass, shader, ui, widget, impeller]
 screenshots:
   - description: The liquid tab bar refracting a colourful page.
     path: doc/screenshots/tab_bar.png
+  - description: The lens lifted under a finger, clear and magnifying.
+    path: doc/screenshots/tab_bar_lifted.png
+  - description: The tab bar in frosted glass.
+    path: doc/screenshots/tab_bar_frosted.png
+  - description: The tab bar minimized into a pill while the page scrolls.
+    path: doc/screenshots/tab_bar_minimized.png
+  - description: A compact inline tab bar on an iPhone held sideways.
+    path: doc/screenshots/tab_bar_landscape.png
+  - description: An inline tab bar along the top of an iPad.
+    path: doc/screenshots/tab_bar_ipad.png
+  - description: A vertical tab bar in the side column of the iPhone Duo.
+    path: doc/screenshots/tab_bar_duo.png
+  - description: The tab bar right to left, with Arabic labels.
+    path: doc/screenshots/tab_bar_rtl.png
+  - description: The tab bar in dark mode.
+    path: doc/screenshots/tab_bar_dark.png
+  - description: An inline tab bar on an unfolded Pixel 10 Pro Fold.
+    path: doc/screenshots/tab_bar_android_fold.png
 
 environment:
   sdk: ^3.13.0
