@@ -41,7 +41,10 @@ class MinimizedPill extends StatelessWidget {
         ),
       ),
     );
-    if (!minimized) return content;
+    // Shrinking, or growing back into the bar and fading out over the tabs.
+    if (!minimized) {
+      return IgnorePointer(child: ExcludeSemantics(child: content));
+    }
     return Semantics(
       button: true,
       onTap: onTap,

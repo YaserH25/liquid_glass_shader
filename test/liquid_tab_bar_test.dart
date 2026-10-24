@@ -821,5 +821,18 @@ void main() {
       await tester.pumpAndSettle();
       expect(glass(tester).width, 408);
     });
+
+    testWidgets('once grown back, a tap where the pill was reaches the bar', (
+      tester,
+    ) async {
+      final log = await pumpMinimizable(tester, minimized: true);
+      await tester.pumpAndSettle();
+      await pumpMinimizable(tester, minimized: false, record: log);
+      await tester.pumpAndSettle();
+      // Where the pill's tab sat, at the start edge.
+      await tester.tapAt(glass(tester).centerLeft + const Offset(24, 0));
+      await tester.pumpAndSettle();
+      expect(log.selections, [0]);
+    });
   });
 }
