@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../glass_lens.dart';
 import '../liquid_tab_bar_lens.dart';
+import 'focus_ring.dart';
 
 /// The row of tabs with the resting lens behind them, at [lens].
 ///
@@ -18,6 +19,7 @@ class RestingLensRow extends StatelessWidget {
     required this.lift,
     required this.refracts,
     required this.optics,
+    required this.focusRing,
     required this.tabs,
   });
 
@@ -32,6 +34,10 @@ class RestingLensRow extends StatelessWidget {
 
   /// The lens's tint and shadows.
   final LiquidTabBarLens optics;
+
+  /// The colour of the ring round the lens while the bar has keyboard
+  /// focus; none draws no ring.
+  final Color? focusRing;
 
   /// The bar's tabs.
   final Widget tabs;
@@ -58,6 +64,11 @@ class RestingLensRow extends StatelessWidget {
           clipper: lifted && !refracts ? _OutsideLens(lens) : null,
           child: tabs,
         ),
+        if (focusRing case final color?)
+          Positioned.fromRect(
+            rect: lens.inflate(3),
+            child: FocusRing(color: color),
+          ),
       ],
     );
   }

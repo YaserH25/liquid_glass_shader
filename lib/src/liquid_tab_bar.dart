@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart' show CupertinoTheme;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -13,6 +14,7 @@ import 'liquid_tab_bar_lens.dart';
 import 'liquid_tab_bar_metrics.dart';
 import 'liquid_tab_bar_motion.dart';
 import 'liquid_tab_builder.dart';
+import 'tab_bar/focus_ring.dart';
 import 'tab_bar/lens_motion.dart';
 import 'tab_bar/lifted_lens.dart';
 import 'tab_bar/minimized_pill.dart';
@@ -231,6 +233,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   void initState() {
     super.initState();
     _lens.config = _motion;
+    FocusManager.instance.addHighlightModeListener(_onHighlightMode);
   }
 
   @override
@@ -284,6 +287,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
   @override
   void dispose() {
+    FocusManager.instance.removeHighlightModeListener(_onHighlightMode);
     _lens.dispose();
     _minimize.dispose();
     super.dispose();
@@ -354,6 +358,83 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     widget.onSelected(index);
   }
 
+  /// A key chose tab [index]: selected at once, as in any tab list, unless a
+  /// finger holds the lens or the bar is a pill.
+  void _selectFromKey(int index) {
+    if (_pointer != null || _minimizeTarget == 1) return;
+    final tab = index.clamp(0, _count - 1);
+    if (tab == widget.selectedIndex) return;
+    _tick(tab);
+    widget.onSelected(tab);
+  }
+
+  /// An arrow key moved [by] slots: the tab beside the current one on
+  /// screen, so the arrows follow the screen in RTL too.
+  void _step(int by) {
+    final geometry = _geometry;
+    final slot = (geometry.flip(widget.selectedIndex) + by).clamp(
+      0,
+      _count - 1,
+    );
+    _selectFromKey(geometry.flip(slot));
+  }
+
+  /// The bar's keys, as in a tab list: the arrows along the bar step to the
+  /// next tab, Home and End jump to the ends, and Enter or space on the
+  /// pill expands the bar.
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key ==
+        (_horizontal
+            ? LogicalKeyboardKey.arrowLeft
+            : LogicalKeyboardKey.arrowUp)) {
+      _step(-1);
+    } else if (key ==
+        (_horizontal
+            ? LogicalKeyboardKey.arrowRight
+            : LogicalKeyboardKey.arrowDown)) {
+      _step(1);
+    } else if (key == LogicalKeyboardKey.home) {
+      _selectFromKey(0);
+    } else if (key == LogicalKeyboardKey.end) {
+      _selectFromKey(_count - 1);
+    } else if (_minimizeTarget == 1 &&
+        event is KeyDownEvent &&
+        (key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.numpadEnter ||
+            key == LogicalKeyboardKey.space)) {
+      widget.onExpand?.call();
+    } else {
+      return KeyEventResult.ignored;
+    }
+    return KeyEventResult.handled;
+  }
+
+  /// Whether the bar has focus, and whether to draw the focus ring: only
+  /// when it came from the keyboard.
+  bool _hasFocus = false;
+  bool _focusShown = false;
+
+  void _onFocusChange(bool hasFocus) {
+    _hasFocus = hasFocus;
+    _showFocus();
+  }
+
+  void _onHighlightMode(FocusHighlightMode _) => _showFocus();
+
+  void _showFocus() {
+    final shown =
+        _hasFocus &&
+        FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+    if (shown != _focusShown) setState(() => _focusShown = shown);
+  }
+
+  /// The focus ring's colour while it shows.
+  Color? get _focusRing => _focusShown
+      ? widget.lens.focusColor ?? CupertinoTheme.of(context).primaryColor
+      : null;
+
   @override
   Widget build(BuildContext context) {
     // Built once per state change, never per animation frame: the lens, the
@@ -389,10 +470,18 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     return RepaintBoundary(
       child: Material(
         type: MaterialType.transparency,
-        child: ValueListenableBuilder(
-          // The tier, and so how the lifted lens draws, depends on the shader.
-          valueListenable: LiquidGlassShader.program,
-          builder: (context, _, _) => _bar(tabs, lensTabs, pill),
+        // One focus stop for the whole bar. Screen readers reach each tab as
+        // a button of its own, so the focus adds nothing for them.
+        child: Focus(
+          includeSemantics: false,
+          onKeyEvent: _onKey,
+          onFocusChange: _onFocusChange,
+          child: ValueListenableBuilder(
+            // The tier, and so how the lifted lens draws, depends on the
+            // shader.
+            valueListenable: LiquidGlassShader.program,
+            builder: (context, _, _) => _bar(tabs, lensTabs, pill),
+          ),
         ),
       ),
     );
@@ -552,6 +641,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                               lift: _lens.lift.value,
                               refracts: refracts,
                               optics: widget.lens,
+                              focusRing: minimized ? null : _focusRing,
                               tabs: tabs,
                             ),
                           ),
@@ -572,6 +662,19 @@ class _LiquidTabBarState extends State<LiquidTabBar>
               ],
             ),
           ),
+          if (_focusRing case final color? when minimized)
+            Positioned.fill(
+              left: -3,
+              top: -3,
+              right: -3,
+              bottom: -3,
+              child: FocusRing(
+                color: color,
+                borderRadius: _metrics.borderRadius?.resolve(
+                  Directionality.of(context),
+                ),
+              ),
+            ),
           // The lifted lens stands over the bar, so it is drawn outside the
           // glass clip. Same inset as the glass content, so coordinates match.
           Positioned.fill(

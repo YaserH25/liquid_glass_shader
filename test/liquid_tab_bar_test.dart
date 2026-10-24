@@ -749,6 +749,125 @@ void main() {
     });
   });
 
+  group('keyboard', () {
+    final focusRing = find.byKey(const Key('liquid_tab_bar_focus'));
+
+    /// Tabs into the bar, its one focus stop.
+    Future<void> focusBar(WidgetTester tester) async {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('arrows select the neighbouring tab on screen', (tester) async {
+      final haptics = _recordHaptics(tester);
+      final selections = await _pump(tester, selected: 1);
+      await focusBar(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(selections, [2]);
+      expect(tester.getCenter(_restingLens), tester.getCenter(_tab(2)));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(selections, [2, 1]);
+      expect(haptics, hasLength(2));
+    });
+
+    testWidgets('arrows follow the screen in RTL', (tester) async {
+      final selections = await _pump(
+        tester,
+        selected: 1,
+        direction: TextDirection.rtl,
+      );
+      await focusBar(tester);
+      // Tab 0 is on the right in RTL.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(selections, [0]);
+    });
+
+    testWidgets('Home and End jump to the first and last tab, and the ends '
+        'hold', (tester) async {
+      final selections = await _pump(tester, selected: 1);
+      await focusBar(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pumpAndSettle();
+      expect(selections, [3, 0]);
+    });
+
+    testWidgets('a vertical bar takes up and down', (tester) async {
+      final selections = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              height: 408,
+              child: LiquidTabBar(
+                axis: Axis.vertical,
+                tabCount: 4,
+                tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
+                selectedIndex: 1,
+                metrics: _metrics,
+                onSelected: selections.add,
+              ),
+            ),
+          ),
+        ),
+      );
+      await focusBar(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      expect(selections, [2, 0]);
+    });
+
+    testWidgets('a focus ring circles the lens only under keyboard focus', (
+      tester,
+    ) async {
+      await _pump(tester, selected: 2);
+      expect(focusRing, findsNothing);
+      await focusBar(tester);
+      final ring = tester.getRect(focusRing);
+      final lens = tester.getRect(_restingLens);
+      expect(ring.center, lens.center);
+      expect(ring.width, greaterThan(lens.width));
+    });
+
+    testWidgets('Enter expands a minimized bar, with the ring round the pill', (
+      tester,
+    ) async {
+      var expanded = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: 408,
+              child: LiquidTabBar(
+                tabCount: 4,
+                tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
+                selectedIndex: 0,
+                metrics: _metrics,
+                minimized: true,
+                onExpand: () => expanded++,
+                onSelected: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await focusBar(tester);
+      expect(
+        tester.getCenter(focusRing),
+        tester.getCenter(find.byType(GlassSurface)),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(expanded, 1);
+    });
+  });
+
   testWidgets('large text scales down to fit its slot, never overflowing', (
     tester,
   ) async {

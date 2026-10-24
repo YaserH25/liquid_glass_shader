@@ -18,6 +18,7 @@ class LiquidTabBarLens {
     this.tint,
     this.shadows,
     this.liftedShadows,
+    this.focusColor,
   });
 
   /// The default lens.
@@ -58,6 +59,10 @@ class LiquidTabBarLens {
   /// `GlassThemeData.lensLiftedShadows`.
   final List<BoxShadow>? liftedShadows;
 
+  /// The ring round the lens while the bar has keyboard focus; none takes
+  /// the app's primary colour.
+  final Color? focusColor;
+
   /// A copy with the given values replaced.
   LiquidTabBarLens copyWith({
     double? liftedExtent,
@@ -70,6 +75,7 @@ class LiquidTabBarLens {
     Color? tint,
     List<BoxShadow>? shadows,
     List<BoxShadow>? liftedShadows,
+    Color? focusColor,
   }) => LiquidTabBarLens(
     liftedExtent: liftedExtent ?? this.liftedExtent,
     liftedThickness: liftedThickness ?? this.liftedThickness,
@@ -81,6 +87,7 @@ class LiquidTabBarLens {
     tint: tint ?? this.tint,
     shadows: shadows ?? this.shadows,
     liftedShadows: liftedShadows ?? this.liftedShadows,
+    focusColor: focusColor ?? this.focusColor,
   );
 
   @override
@@ -95,7 +102,8 @@ class LiquidTabBarLens {
       other.specular == specular &&
       other.tint == tint &&
       listEquals(other.shadows, shadows) &&
-      listEquals(other.liftedShadows, liftedShadows);
+      listEquals(other.liftedShadows, liftedShadows) &&
+      other.focusColor == focusColor;
 
   @override
   int get hashCode => Object.hash(
@@ -109,5 +117,6 @@ class LiquidTabBarLens {
     tint,
     Object.hashAll(shadows ?? const []),
     Object.hashAll(liftedShadows ?? const []),
+    focusColor,
   );
 }
