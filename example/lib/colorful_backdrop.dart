@@ -3,10 +3,17 @@ import 'package:flutter/material.dart';
 /// A scrolling page of saturated colour and text, so the glass above it
 /// has something to refract.
 class ColorfulBackdrop extends StatelessWidget {
-  const ColorfulBackdrop({super.key, required this.header});
+  const ColorfulBackdrop({
+    super.key,
+    required this.header,
+    required this.padding,
+  });
 
   /// Shown at the top of the page.
   final Widget header;
+
+  /// Around the page's content, clear of the bars floating over it.
+  final EdgeInsets padding;
 
   static const _colors = [
     Colors.deepOrange,
@@ -21,10 +28,8 @@ class ColorfulBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final insets = MediaQuery.paddingOf(context);
     return ListView.builder(
-      // The bar floats over the page, so the last block scrolls clear of it.
-      padding: EdgeInsets.fromLTRB(16, insets.top + 16, 16, insets.bottom + 16),
+      padding: padding,
       itemCount: 21,
       itemBuilder: (context, index) {
         if (index == 0) return header;
@@ -41,7 +46,7 @@ class ColorfulBackdrop extends StatelessWidget {
               end: Alignment.bottomRight,
             ),
           ),
-          alignment: Alignment.bottomLeft,
+          alignment: AlignmentDirectional.bottomStart,
           child: Text(
             'Block $index',
             style: Theme.of(context).textTheme.headlineSmall

@@ -90,7 +90,10 @@ class _Scene extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     home: Scaffold(
       extendBody: true,
-      body: const ColorfulBackdrop(header: SizedBox.shrink()),
+      body: const ColorfulBackdrop(
+        header: SizedBox.shrink(),
+        padding: EdgeInsets.fromLTRB(16, 60, 16, 120),
+      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
