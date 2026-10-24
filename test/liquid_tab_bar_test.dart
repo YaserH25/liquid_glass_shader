@@ -623,4 +623,139 @@ void main() {
       );
     });
   });
+
+  group('minimized', () {
+    /// A 408-wide bar over a page that counts the taps that reach it.
+    Future<({List<int> selections, List<String> calls})> pumpMinimizable(
+      WidgetTester tester, {
+      required bool minimized,
+      int selected = 2,
+      TextDirection direction = TextDirection.ltr,
+      bool reduceMotion = false,
+      bool screenReader = false,
+      ({List<int> selections, List<String> calls})? record,
+    }) async {
+      final log = record ?? (selections: <int>[], calls: <String>[]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              disableAnimations: reduceMotion,
+              accessibleNavigation: screenReader,
+            ),
+            child: Directionality(
+              textDirection: direction,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => log.calls.add('page'),
+                    ),
+                  ),
+                  Center(
+                    child: SizedBox(
+                      width: 408,
+                      child: LiquidTabBar(
+                        tabCount: 4,
+                        tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
+                        minimizedBuilder: (_, i) => Text('min$i'),
+                        selectedIndex: selected,
+                        height: 68,
+                        minimized: minimized,
+                        onExpand: () => log.calls.add('expand'),
+                        onSelected: log.selections.add,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return log;
+    }
+
+    Rect bar(WidgetTester tester) => tester.getRect(find.byType(LiquidTabBar));
+    Rect glass(WidgetTester tester) => tester.getRect(
+      find
+          .descendant(
+            of: find.byType(LiquidTabBar),
+            matching: find.byType(GlassSurface),
+          )
+          .first,
+    );
+
+    testWidgets('shrinks the glass into a pill at the start edge, '
+        'showing the minimized tab', (tester) async {
+      await pumpMinimizable(tester, minimized: false);
+      expect(glass(tester).width, 408);
+
+      await pumpMinimizable(tester, minimized: true);
+      await tester.pumpAndSettle();
+      final pill = glass(tester);
+      expect(pill.width, _style.minimizedSize);
+      expect(pill.height, _style.minimizedSize);
+      expect(pill.left, bar(tester).left);
+      expect(pill.bottom, bar(tester).bottom);
+      expect(find.text('min2').hitTestable(), findsOneWidget);
+      expect(find.text('A').hitTestable(), findsNothing);
+    });
+
+    testWidgets('sits at the start edge in RTL', (tester) async {
+      await pumpMinimizable(
+        tester,
+        minimized: true,
+        direction: TextDirection.rtl,
+      );
+      await tester.pumpAndSettle();
+      expect(glass(tester).width, _style.minimizedSize);
+      expect(glass(tester).right, bar(tester).right);
+    });
+
+    testWidgets('a tap on the pill asks to expand and selects nothing', (
+      tester,
+    ) async {
+      final log = await pumpMinimizable(tester, minimized: true);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('min2'));
+      await tester.pumpAndSettle();
+      expect(log.calls, ['expand']);
+      expect(log.selections, isEmpty);
+    });
+
+    testWidgets('a touch beside the pill reaches the page under the bar', (
+      tester,
+    ) async {
+      final log = await pumpMinimizable(tester, minimized: true);
+      await tester.pumpAndSettle();
+      await tester.tapAt(bar(tester).centerRight - const Offset(20, 0));
+      expect(log.calls, ['page']);
+    });
+
+    testWidgets('springs back to the full bar', (tester) async {
+      await pumpMinimizable(tester, minimized: true);
+      await tester.pumpAndSettle();
+      await pumpMinimizable(tester, minimized: false);
+      await _advance(tester, 60);
+      expect(glass(tester).width, inExclusiveRange(_style.minimizedSize, 408));
+      await tester.pumpAndSettle();
+      expect(glass(tester).width, 408);
+      expect(find.text('A').hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('reduced motion minimizes at once', (tester) async {
+      await pumpMinimizable(tester, minimized: false, reduceMotion: true);
+      await pumpMinimizable(tester, minimized: true, reduceMotion: true);
+      await tester.pump();
+      expect(glass(tester).width, _style.minimizedSize);
+    });
+
+    testWidgets('stays a full bar for a screen reader', (tester) async {
+      await pumpMinimizable(tester, minimized: true, screenReader: true);
+      await tester.pumpAndSettle();
+      expect(glass(tester).width, 408);
+    });
+  });
 }

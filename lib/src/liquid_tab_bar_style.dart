@@ -9,6 +9,7 @@ class LiquidTabBarStyle {
     SpringDescription? lift,
     SpringDescription? drop,
     SpringDescription? jelly,
+    SpringDescription? minimize,
     this.catchUp = 35,
     this.liftedWidth = 1.18,
     this.liftedHeight = 1.3,
@@ -22,6 +23,7 @@ class LiquidTabBarStyle {
     this.lensBend = 18,
     this.lensDispersion = 0.5,
     this.lensSpecular = 0.55,
+    this.minimizedSize = 56,
   }) : settle =
            settle ??
            SpringDescription.withDampingRatio(
@@ -49,6 +51,13 @@ class LiquidTabBarStyle {
              mass: 1,
              stiffness: 400,
              ratio: 0.5,
+           ),
+       minimize =
+           minimize ??
+           SpringDescription.withDampingRatio(
+             mass: 1,
+             stiffness: 500,
+             ratio: 0.9,
            );
 
   /// The default style.
@@ -111,4 +120,12 @@ class LiquidTabBarStyle {
 
   /// Light caught along the top of the lifted lens's rim (0 to 1).
   final double lensSpecular;
+
+  /// The bar shrinking into its pill, and growing back: quick, barely
+  /// overshooting.
+  final SpringDescription minimize;
+
+  /// Width and height of the pill a minimized bar shrinks into, glass
+  /// included. Keep it at least 48 so the pill stays easy to tap.
+  final double minimizedSize;
 }

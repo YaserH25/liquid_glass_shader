@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -58,6 +59,9 @@ class LiquidTabBar extends StatefulWidget {
     this.style,
     this.haptics = true,
     this.shareBackdrop = false,
+    this.minimized = false,
+    this.onExpand,
+    this.minimizedBuilder,
   }) : assert(tabCount > 0),
        assert(selectedIndex >= 0 && selectedIndex < tabCount);
 
@@ -93,6 +97,20 @@ class LiquidTabBar extends StatefulWidget {
   /// because it refracts the bar's own tabs.
   final bool shareBackdrop;
 
+  /// Shrinks the bar into a pill at its start edge that shows only the
+  /// current tab ([minimizedBuilder]), as the iOS 26 tab bar does while a
+  /// page scrolls down. The bar keeps its size, so the page does not move;
+  /// touches beside the pill reach the page under the bar. A screen reader
+  /// always gets the full bar.
+  final bool minimized;
+
+  /// Called when the minimized pill is tapped; expand the bar here.
+  final VoidCallback? onExpand;
+
+  /// Draws tab [index] inside the minimized pill; without it the tab from
+  /// [tabBuilder] is scaled down to fit.
+  final Widget Function(BuildContext context, int index)? minimizedBuilder;
+
   @override
   State<LiquidTabBar> createState() => _LiquidTabBarState();
 }
@@ -108,6 +126,13 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   late final AnimationController _lift = AnimationController.unbounded(
     vsync: this,
   );
+
+  /// 0 as the full bar, 1 shrunk into the minimized pill (springs past
+  /// both a little).
+  late final AnimationController _minimize = AnimationController.unbounded(
+    vsync: this,
+  );
+  double? _minimizeTarget;
 
   final GlobalKey _rowKey = GlobalKey();
 
@@ -146,6 +171,10 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   int get _count => widget.tabCount;
   LiquidTabBarStyle get _style => widget.style ?? LiquidTabBarStyle.standard;
   bool get _reduceMotion => MediaQuery.disableAnimationsOf(context);
+
+  /// Minimized only when asked, and never for a screen reader.
+  bool get _showsMinimized =>
+      widget.minimized && !MediaQuery.accessibleNavigationOf(context);
 
   /// Physical slot of a tab, or tab of a physical slot (the map is its own
   /// inverse).
@@ -217,6 +246,25 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       _wasRtl = isRtl;
       _x.value = _flip(widget.selectedIndex).toDouble();
     }
+    _followMinimized();
+  }
+
+  /// Springs towards the minimized pill or the full bar, as asked; the
+  /// first build starts there.
+  void _followMinimized() {
+    final target = _showsMinimized ? 1.0 : 0.0;
+    if (target == _minimizeTarget) return;
+    final first = _minimizeTarget == null;
+    _minimizeTarget = target;
+    if (target == 1 && _pointer != null) {
+      _release();
+      _settleOn(widget.selectedIndex);
+    }
+    if (first) {
+      _minimize.value = target;
+    } else {
+      _springTo(_minimize, _style.minimize, target);
+    }
   }
 
   @override
@@ -230,6 +278,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     } else if (_pointer == null && old.selectedIndex != widget.selectedIndex) {
       _settleOn(widget.selectedIndex);
     }
+    if (old.minimized != widget.minimized) _followMinimized();
   }
 
   @override
@@ -240,6 +289,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     _catchUp.dispose();
     _x.dispose();
     _lift.dispose();
+    _minimize.dispose();
     super.dispose();
   }
 
@@ -406,6 +456,14 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     // boundary so the moving lens does not repaint the labels.
     final tabs = RepaintBoundary(child: _tabs());
     final lensTabs = RepaintBoundary(child: _tabs(forLens: true));
+    // Only while the pill shows or is shrinking away.
+    final pill = _minimizeTarget == 1 || _minimize.value > 0
+        ? widget.minimizedBuilder?.call(context, widget.selectedIndex) ??
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: widget.tabBuilder(context, widget.selectedIndex, true),
+              )
+        : null;
     // Its own layer, so a scrolling page does not repaint the bar.
     return RepaintBoundary(
       child: Material(
@@ -415,15 +473,16 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             _x,
             _lift,
             _stretch,
+            _minimize,
             LiquidGlassShader.program,
           ]),
-          builder: (context, _) => _bar(tabs, lensTabs),
+          builder: (context, _) => _bar(tabs, lensTabs, pill),
         ),
       ),
     );
   }
 
-  Widget _bar(Widget tabs, Widget lensTabs) {
+  Widget _bar(Widget tabs, Widget lensTabs, Widget? pill) {
     final lift = _lift.value;
     final lifted = lift > 0;
     final pressedLift = math.max(lift, 0.0);
@@ -431,7 +490,62 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     // it; otherwise it shows a magnified copy over a cut-out.
     final refracts = GlassScope.qualityOf(context) == GlassQuality.refraction;
     final stretch = _reduceMotion ? 0.0 : _stretch.value;
+    final minimize = _minimize.value.clamp(0.0, 1.0);
+    final minimized = _minimizeTarget == 1;
+    final fullHeight = widget.height + 2 * widget.inset;
 
+    // The bar keeps its full box, so the page under it never moves; only the
+    // glass shrinks towards the start edge, and the box around the pill
+    // takes no touches.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fullWidth = constraints.maxWidth;
+        final pillSize = _style.minimizedSize;
+        return SizedBox(
+          width: fullWidth,
+          height: fullHeight,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              PositionedDirectional(
+                start: 0,
+                bottom: 0,
+                width: lerpDouble(fullWidth, pillSize, minimize),
+                height: lerpDouble(fullHeight, pillSize, minimize),
+                child: _glass(
+                  tabs,
+                  lensTabs,
+                  pill,
+                  rowWidth: fullWidth - 2 * widget.inset,
+                  lift: lift,
+                  lifted: lifted,
+                  pressedLift: pressedLift,
+                  refracts: refracts,
+                  stretch: stretch,
+                  minimize: minimize,
+                  minimized: minimized,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _glass(
+    Widget tabs,
+    Widget lensTabs,
+    Widget? pill, {
+    required double rowWidth,
+    required double lift,
+    required bool lifted,
+    required double pressedLift,
+    required bool refracts,
+    required double stretch,
+    required double minimize,
+    required bool minimized,
+  }) {
     return Transform.scale(
       scale: 1 + (_style.pressedScale - 1) * pressedLift,
       child: Stack(
@@ -441,48 +555,42 @@ class _LiquidTabBarState extends State<LiquidTabBar>
             shareBackdrop: widget.shareBackdrop,
             shadows: widget.shadows,
             padding: EdgeInsets.all(widget.inset),
-            child: SizedBox(
-              height: widget.height,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final size = Size(constraints.maxWidth, widget.height);
-                  final lens = _lensRect(size, lift, stretch);
-                  return Listener(
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: _onDown,
-                    onPointerMove: _onMove,
-                    onPointerUp: _onUp,
-                    onPointerCancel: _onCancel,
-                    child: Stack(
-                      key: _rowKey,
-                      children: [
-                        // At rest the lens sits behind the tabs. With the
-                        // shader it fades out as the clear lens lifts over
-                        // them, and back in as it drops, so the two never
-                        // swap in one frame.
-                        if (!lifted || refracts)
-                          Positioned.fromRect(
-                            rect: lens,
-                            child: Opacity(
-                              opacity: 1 - lift.clamp(0.0, 1.0),
-                              child: const GlassLens(
-                                key: Key('liquid_tab_bar_lens'),
-                              ),
-                            ),
-                          ),
-                        // Lifted without the shader, it covers them; cut its
-                        // area out so they only show magnified, inside it.
-                        ClipPath(
-                          clipper: lifted && !refracts
-                              ? _OutsideLens(lens)
-                              : null,
-                          child: tabs,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (minimize < 1)
+                  IgnorePointer(
+                    ignoring: minimized,
+                    child: ExcludeSemantics(
+                      excluding: minimized,
+                      child: Opacity(
+                        opacity: 1 - minimize,
+                        // The row keeps its full width while the glass
+                        // shrinks over it, so the tabs never squeeze.
+                        child: OverflowBox(
+                          alignment: AlignmentDirectional.centerStart,
+                          minWidth: rowWidth,
+                          maxWidth: rowWidth,
+                          minHeight: widget.height,
+                          maxHeight: widget.height,
+                          child: _row(tabs, lift, lifted, refracts, stretch),
                         ),
-                      ],
+                      ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                if (pill != null && minimized)
+                  Semantics(
+                    button: true,
+                    onTap: widget.onExpand,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: widget.onExpand,
+                      child: _pillContent(pill, minimize),
+                    ),
+                  )
+                else if (pill != null && minimize > 0)
+                  _pillContent(pill, minimize),
+              ],
             ),
           ),
           // The lifted lens stands over the bar, so it is drawn outside the
@@ -510,6 +618,61 @@ class _LiquidTabBarState extends State<LiquidTabBar>
       ),
     );
   }
+
+  /// [pill] fading with [minimize] where the pill sits, at the start edge,
+  /// so it never drifts across the tabs while the bar grows.
+  Widget _pillContent(Widget pill, double minimize) => Align(
+    alignment: AlignmentDirectional.centerStart,
+    child: SizedBox.square(
+      dimension: _style.minimizedSize - 2 * widget.inset,
+      child: Center(
+        child: Opacity(opacity: minimize, child: pill),
+      ),
+    ),
+  );
+
+  /// The row of tabs with the resting lens, taking the bar's touches.
+  Widget _row(
+    Widget tabs,
+    double lift,
+    bool lifted,
+    bool refracts,
+    double stretch,
+  ) => LayoutBuilder(
+    builder: (context, constraints) {
+      final size = Size(constraints.maxWidth, widget.height);
+      final lens = _lensRect(size, lift, stretch);
+      return Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: _onDown,
+        onPointerMove: _onMove,
+        onPointerUp: _onUp,
+        onPointerCancel: _onCancel,
+        child: Stack(
+          key: _rowKey,
+          children: [
+            // At rest the lens sits behind the tabs. With the shader it fades
+            // out as the clear lens lifts over them, and back in as it drops,
+            // so the two never swap in one frame.
+            if (!lifted || refracts)
+              Positioned.fromRect(
+                rect: lens,
+                child: Opacity(
+                  opacity: 1 - lift.clamp(0.0, 1.0),
+                  child: const GlassLens(key: Key('liquid_tab_bar_lens')),
+                ),
+              ),
+            // Lifted without the shader, it covers them; cut its area out so
+            // they only show magnified, inside it.
+            ClipPath(
+              clipper: lifted && !refracts ? _OutsideLens(lens) : null,
+              child: tabs,
+            ),
+          ],
+        ),
+      );
+    },
+  );
 
   /// The lens in row coordinates: one slot at rest, larger as it lifts,
   /// drawn out along its path (and a little thinner) as it moves.

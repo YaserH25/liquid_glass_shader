@@ -75,6 +75,7 @@ Scaffold(
 - Tabs are passive content. The bar handles touch and screen readers, so don't put an `InkWell`, `GestureDetector` or button semantics inside a tab: a tap would select twice. Each tab is a button for screen readers, with its selected state, labelled by the text your `tabBuilder` draws.
 - A selection tick plays for each tab the lens crosses; turn it off with `haptics: false`.
 - `LiquidTabBarStyle` holds the springs, lens size, magnification, stretch and rubber band if you want to tune the feel.
+- `minimized: true` shrinks the bar into a pill at its start edge that shows only the current tab (draw it with `minimizedBuilder`), as iOS 26 does while a page scrolls down; a tap on the pill calls `onExpand`. The bar keeps its size, so set it from the page's scroll direction (a `NotificationListener<UserScrollNotification>` works) without the page moving. A screen reader always gets the full bar.
 
 ## Sharing the screen copy
 
