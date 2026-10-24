@@ -6,14 +6,31 @@ import 'glass_scope.dart';
 /// The selected tab's lens: a brighter capsule of glass with its own rim.
 ///
 /// [lift] (0 at rest, 1 under a finger) clears the tint, so the lens reads
-/// as clear glass, and deepens its shadow. Colours and shadows come from
-/// [GlassScope.themeOf].
+/// as clear glass, and deepens its shadow. Colours and shadows not given
+/// come from [GlassScope.themeOf].
 class GlassLens extends StatelessWidget {
   /// A lens filling its box.
-  const GlassLens({super.key, this.lift = 0});
+  const GlassLens({
+    super.key,
+    this.lift = 0,
+    this.tint,
+    this.shadows,
+    this.liftedShadows,
+  });
 
   /// 0 at rest, 1 lifted under a finger.
   final double lift;
+
+  /// The tint at rest; none takes the theme's `GlassThemeData.lensTint`.
+  final Color? tint;
+
+  /// The shadow at rest; none takes the theme's
+  /// `GlassThemeData.lensShadows`.
+  final List<BoxShadow>? shadows;
+
+  /// The shadow lifted; none takes the theme's
+  /// `GlassThemeData.lensLiftedShadows`.
+  final List<BoxShadow>? liftedShadows;
 
   @override
   Widget build(BuildContext context) {
@@ -31,8 +48,8 @@ class GlassLens extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: radius,
               boxShadow: BoxShadow.lerpList(
-                theme.lensShadows,
-                theme.lensLiftedShadows,
+                shadows ?? theme.lensShadows,
+                liftedShadows ?? theme.lensLiftedShadows,
                 t,
               ),
             ),
@@ -41,7 +58,7 @@ class GlassLens extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(
             color: Color.lerp(
-              theme.lensTint,
+              tint ?? theme.lensTint,
               theme.rim.withValues(alpha: 0.12),
               t,
             ),

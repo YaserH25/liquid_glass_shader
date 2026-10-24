@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../glass_lens.dart';
+import '../liquid_tab_bar_lens.dart';
 
 /// The row of tabs with the resting lens behind them, at [lens].
 ///
@@ -16,6 +17,7 @@ class RestingLensRow extends StatelessWidget {
     required this.lens,
     required this.lift,
     required this.refracts,
+    required this.optics,
     required this.tabs,
   });
 
@@ -27,6 +29,9 @@ class RestingLensRow extends StatelessWidget {
 
   /// Whether the lifted lens refracts the tabs beneath it.
   final bool refracts;
+
+  /// The lens's tint and shadows.
+  final LiquidTabBarLens optics;
 
   /// The bar's tabs.
   final Widget tabs;
@@ -41,7 +46,12 @@ class RestingLensRow extends StatelessWidget {
             rect: lens,
             child: Opacity(
               opacity: 1 - lift.clamp(0.0, 1.0),
-              child: const GlassLens(key: Key('liquid_tab_bar_lens')),
+              child: GlassLens(
+                key: const Key('liquid_tab_bar_lens'),
+                tint: optics.tint,
+                shadows: optics.shadows,
+                liftedShadows: optics.liftedShadows,
+              ),
             ),
           ),
         ClipPath(

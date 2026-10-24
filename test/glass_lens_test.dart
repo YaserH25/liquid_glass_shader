@@ -36,4 +36,33 @@ void main() {
     await tester.pumpWidget(_lens(1));
     expect(_fill(tester), theme.rim.withValues(alpha: 0.12));
   });
+
+  testWidgets('a tint and shadows of its own override the theme', (
+    tester,
+  ) async {
+    const tint = Color(0x5534C759);
+    const shadows = [BoxShadow(color: Color(0x33000000), blurRadius: 3)];
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 100,
+            height: 60,
+            child: GlassLens(tint: tint, shadows: shadows),
+          ),
+        ),
+      ),
+    );
+    expect(_fill(tester), tint);
+    final shadow = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byType(GlassLens),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((box) => (box.decoration as BoxDecoration).boxShadow)
+        .firstWhere((s) => s != null);
+    expect(shadow, shadows);
+  });
 }

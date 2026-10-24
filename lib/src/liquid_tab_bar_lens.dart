@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 
-/// How a `LiquidTabBar`'s lens looks: its size and optics once lifted under
-/// a finger. The defaults match the iOS 26 tab bar.
+/// How a `LiquidTabBar`'s lens looks: its tint and shadows, and its size and
+/// optics once lifted under a finger. The defaults match the iOS 26 tab bar;
+/// colours not given come from the `GlassScope`'s theme.
 @immutable
 class LiquidTabBarLens {
   /// A lens; every value has a default.
@@ -13,6 +15,9 @@ class LiquidTabBarLens {
     this.bend = 18,
     this.dispersion = 0.5,
     this.specular = 0.55,
+    this.tint,
+    this.shadows,
+    this.liftedShadows,
   });
 
   /// The default lens.
@@ -41,6 +46,18 @@ class LiquidTabBarLens {
   /// Light caught along the top of the lifted lens's rim (0 to 1).
   final double specular;
 
+  /// The resting lens's tint; none takes the theme's
+  /// `GlassThemeData.lensTint`.
+  final Color? tint;
+
+  /// The resting lens's shadow; none takes the theme's
+  /// `GlassThemeData.lensShadows`.
+  final List<BoxShadow>? shadows;
+
+  /// The lifted lens's shadow; none takes the theme's
+  /// `GlassThemeData.lensLiftedShadows`.
+  final List<BoxShadow>? liftedShadows;
+
   /// A copy with the given values replaced.
   LiquidTabBarLens copyWith({
     double? liftedExtent,
@@ -50,6 +67,9 @@ class LiquidTabBarLens {
     double? bend,
     double? dispersion,
     double? specular,
+    Color? tint,
+    List<BoxShadow>? shadows,
+    List<BoxShadow>? liftedShadows,
   }) => LiquidTabBarLens(
     liftedExtent: liftedExtent ?? this.liftedExtent,
     liftedThickness: liftedThickness ?? this.liftedThickness,
@@ -58,6 +78,9 @@ class LiquidTabBarLens {
     bend: bend ?? this.bend,
     dispersion: dispersion ?? this.dispersion,
     specular: specular ?? this.specular,
+    tint: tint ?? this.tint,
+    shadows: shadows ?? this.shadows,
+    liftedShadows: liftedShadows ?? this.liftedShadows,
   );
 
   @override
@@ -69,7 +92,10 @@ class LiquidTabBarLens {
       other.band == band &&
       other.bend == bend &&
       other.dispersion == dispersion &&
-      other.specular == specular;
+      other.specular == specular &&
+      other.tint == tint &&
+      listEquals(other.shadows, shadows) &&
+      listEquals(other.liftedShadows, liftedShadows);
 
   @override
   int get hashCode => Object.hash(
@@ -80,5 +106,8 @@ class LiquidTabBarLens {
     bend,
     dispersion,
     specular,
+    tint,
+    Object.hashAll(shadows ?? const []),
+    Object.hashAll(liftedShadows ?? const []),
   );
 }

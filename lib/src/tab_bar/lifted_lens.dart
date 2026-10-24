@@ -34,7 +34,7 @@ class LiftedLens extends StatelessWidget {
   /// Whether the lens refracts the tabs beneath it.
   final bool refracts;
 
-  /// The lens's size, optics and magnification.
+  /// The lens's size, optics, magnification, tint and shadows.
   final LiquidTabBarLens optics;
 
   /// A copy of the row, every tab drawn as current, for the lens to magnify.
@@ -69,10 +69,20 @@ class LiftedLens extends StatelessWidget {
                 // resting lens behind the tabs supplies the tint.
                 Opacity(
                   opacity: lift.clamp(0.0, 1.0),
-                  child: const GlassLens(lift: 1),
+                  child: GlassLens(
+                    lift: 1,
+                    tint: optics.tint,
+                    shadows: optics.shadows,
+                    liftedShadows: optics.liftedShadows,
+                  ),
                 )
               else ...[
-                GlassLens(lift: lift),
+                GlassLens(
+                  lift: lift,
+                  tint: optics.tint,
+                  shadows: optics.shadows,
+                  liftedShadows: optics.liftedShadows,
+                ),
                 _magnified(magnification),
               ],
             ],

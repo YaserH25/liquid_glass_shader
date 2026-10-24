@@ -3,8 +3,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'glass_look.dart';
 import 'glass_quality.dart';
 import 'glass_scope.dart';
+import 'glass_style.dart';
 import 'glass_surface.dart';
 import 'liquid_glass_shader_loader.dart';
 import 'liquid_tab_bar_lens.dart';
@@ -58,8 +60,13 @@ class LiquidTabBar extends StatefulWidget {
     this.motion,
     this.lens = LiquidTabBarLens.standard,
     this.alignment = Alignment.center,
+    this.style,
+    this.look,
+    this.rim = true,
+    this.edge = true,
+    this.strength = 1,
     this.shadows,
-    this.haptics = true,
+    this.onTick = selectionClick,
     this.shareBackdrop = false,
     this.minimized = false,
     this.minimizedAlignment = AlignmentDirectional.bottomStart,
@@ -86,18 +93,41 @@ class LiquidTabBar extends StatefulWidget {
   /// How the lens moves: [LiquidTabBarMotion.standard] by default.
   final LiquidTabBarMotion? motion;
 
-  /// How the lens looks once lifted.
+  /// How the lens looks: its tint and shadows, and its size and optics once
+  /// lifted.
   final LiquidTabBarLens lens;
 
   /// Where the glass sits when it hugs its tabs: centred by default, as on
   /// iOS.
   final AlignmentGeometry alignment;
 
+  /// Forces the bar's glass clear or frosted; none follows the
+  /// [GlassScope]. See [GlassSurface.style].
+  final GlassStyle? style;
+
+  /// A look of the bar's own; overrides [style]. See [GlassSurface.look].
+  final GlassLook? look;
+
+  /// Draws the light-catching rim of the bar's glass.
+  final bool rim;
+
+  /// Draws the outer hairline that separates the bar from light pages.
+  final bool edge;
+
+  /// How much glass the bar has, 0 to 1; see [GlassSurface.strength].
+  final double strength;
+
   /// Shadows outside the bar's glass.
   final List<BoxShadow>? shadows;
 
-  /// A selection tick for each tab the lens crosses.
-  final bool haptics;
+  /// Called each time the lens moves onto another tab, with that tab: as a
+  /// finger drags it, or as a screen reader selects. Plays the selection
+  /// click by default ([selectionClick]); null stays silent. Pass your own
+  /// for a different haptic, a sound, or both.
+  final ValueChanged<int>? onTick;
+
+  /// The selection click of the platform: the default [onTick].
+  static void selectionClick(int tab) => HapticFeedback.selectionClick();
 
   /// Shares the copy of the screen behind the bar with other glass that
   /// shares; see [GlassSurface.shareBackdrop]. The lifted lens never shares,
@@ -246,9 +276,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
   void _settleOn(int index) => _lens.settleOn(_geometry.flip(index).toDouble());
 
-  void _tick() {
-    if (widget.haptics) HapticFeedback.selectionClick();
-  }
+  void _tick(int tab) => widget.onTick?.call(tab);
 
   /// Follows the finger at [globalPosition]: moves the lens and updates the
   /// tab under it.
@@ -260,7 +288,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     final nearest = raw.round().clamp(0, _count - 1);
 
     final tab = geometry.flip(nearest);
-    if (tab != (_hovered ?? widget.selectedIndex)) _tick();
+    if (tab != (_hovered ?? widget.selectedIndex)) _tick(tab);
     // Rebuilds every tab, so only when the tab under the finger changes.
     if (tab != _hovered) setState(() => _hovered = tab);
 
@@ -307,7 +335,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
 
   /// A screen reader tapped tab [index].
   void _selectFromSemantics(int index) {
-    if (index != widget.selectedIndex) _tick();
+    if (index != widget.selectedIndex) _tick(index);
     widget.onSelected(index);
   }
 
@@ -444,6 +472,11 @@ class _LiquidTabBarState extends State<LiquidTabBar>
         children: [
           GlassSurface(
             borderRadius: _metrics.borderRadius,
+            style: widget.style,
+            look: widget.look,
+            rim: widget.rim,
+            edge: widget.edge,
+            strength: widget.strength,
             shareBackdrop: widget.shareBackdrop,
             shadows: widget.shadows,
             padding: EdgeInsets.all(inset),
@@ -478,6 +511,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                               lens: _lensIn(row),
                               lift: _lens.lift.value,
                               refracts: refracts,
+                              optics: widget.lens,
                               tabs: tabs,
                             ),
                           ),

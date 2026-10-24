@@ -724,7 +724,7 @@ void main() {
       int selected = 0,
       TextDirection direction = TextDirection.ltr,
       double scale = 1,
-      bool haptics = true,
+      ValueChanged<int>? onTick = LiquidTabBar.selectionClick,
       List<int>? selections,
     }) => MaterialApp(
       home: Directionality(
@@ -739,7 +739,7 @@ void main() {
                 tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
                 selectedIndex: selected,
                 metrics: _metrics,
-                haptics: haptics,
+                onTick: onTick,
                 onSelected: (index) => selections?.add(index),
               ),
             ),
@@ -808,9 +808,7 @@ void main() {
       },
     );
 
-    testWidgets('no haptics when turned off', (tester) async {
-      final haptics = _recordHaptics(tester);
-      await tester.pumpWidget(plain(count: 4, haptics: false));
+    Future<void> scrubAcross(WidgetTester tester) async {
       final gesture = await tester.startGesture(tester.getCenter(_tab(0)));
       await _advance(tester, 100);
       for (final i in [1, 2, 3]) {
@@ -819,7 +817,82 @@ void main() {
       }
       await gesture.up();
       await tester.pumpAndSettle();
+    }
+
+    testWidgets('no haptics without onTick', (tester) async {
+      final haptics = _recordHaptics(tester);
+      await tester.pumpWidget(plain(count: 4, onTick: null));
+      await scrubAcross(tester);
       expect(haptics, isEmpty);
+    });
+
+    testWidgets('onTick hears each tab the lens moves onto, instead of the '
+        'click', (tester) async {
+      final haptics = _recordHaptics(tester);
+      final ticks = <int>[];
+      await tester.pumpWidget(plain(count: 4, onTick: ticks.add));
+      await scrubAcross(tester);
+      expect(ticks, [1, 2, 3]);
+      expect(haptics, isEmpty);
+    });
+
+    testWidgets('hands its glass settings to the glass', (tester) async {
+      const look = GlassLook(
+        frost: 4,
+        fallbackFrost: 8,
+        tint: Color(0x220000FF),
+        band: 10,
+        bend: 5,
+        dispersion: 0.1,
+        specular: 0.2,
+        sheen: 0.1,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LiquidTabBar(
+            tabCount: 2,
+            tabBuilder: (_, i, _) => Text('$i'),
+            selectedIndex: 0,
+            onSelected: (_) {},
+            style: GlassStyle.frosted,
+            look: look,
+            rim: false,
+            edge: false,
+            strength: 0.5,
+          ),
+        ),
+      );
+      final glass = tester.widget<GlassSurface>(find.byType(GlassSurface));
+      expect(glass.style, GlassStyle.frosted);
+      expect(glass.look, look);
+      expect(glass.rim, isFalse);
+      expect(glass.edge, isFalse);
+      expect(glass.strength, 0.5);
+    });
+
+    testWidgets('the lens takes the tint and shadows of its bar', (
+      tester,
+    ) async {
+      const lens = LiquidTabBarLens(
+        tint: Color(0x5534C759),
+        shadows: [BoxShadow(blurRadius: 2)],
+        liftedShadows: [BoxShadow(blurRadius: 9)],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LiquidTabBar(
+            tabCount: 2,
+            tabBuilder: (_, i, _) => Text('$i'),
+            selectedIndex: 0,
+            onSelected: (_) {},
+            lens: lens,
+          ),
+        ),
+      );
+      final resting = tester.widget<GlassLens>(_restingLens);
+      expect(resting.tint, lens.tint);
+      expect(resting.shadows, lens.shadows);
+      expect(resting.liftedShadows, lens.liftedShadows);
     });
 
     test('rejects a selected index out of range', () {
