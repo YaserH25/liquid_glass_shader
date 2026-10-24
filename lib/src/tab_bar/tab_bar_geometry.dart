@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
+import '../liquid_tab_bar_lens.dart';
+
 /// Where the tabs and the lens sit in a tab bar's row of [count] tabs, with
 /// tab slots counted from the physical left.
 @immutable
@@ -22,24 +24,30 @@ class TabBarGeometry {
   /// of the first slot, 1 at the centre of the second.
   double slotAt(Offset local, Size row) => local.dx / (row.width / count) - 0.5;
 
-  /// The lens centred on slot [position] of a [row]: one slot at rest,
-  /// larger as it lifts ([liftedWidth] and [liftedHeight] of it at a [lift]
-  /// of 1), and drawn out along its path, and a little thinner, by
-  /// [stretch].
+  /// The lens on slot [position] of a [row]: at rest, the slot less [gap];
+  /// larger as it [lift]s, by [LiquidTabBarLens.liftedExtent] and
+  /// [LiquidTabBarLens.liftedThickness] at a lift of 1; and drawn out along
+  /// its path, and a little thinner, by [stretch].
   Rect lensRect(
     Size row,
     double position, {
     required double lift,
     required double stretch,
-    required double liftedWidth,
-    required double liftedHeight,
+    required LiquidTabBarLens lens,
+    EdgeInsets gap = EdgeInsets.zero,
   }) {
     final slot = row.width / count;
-    final width = slot * (1 + (liftedWidth - 1) * lift) * (1 + stretch);
+    final resting = gap.deflateRect(
+      Rect.fromLTWH(position * slot, 0, slot, row.height),
+    );
+    final width =
+        resting.width * (1 + (lens.liftedExtent - 1) * lift) * (1 + stretch);
     final height =
-        row.height * (1 + (liftedHeight - 1) * lift) / (1 + stretch / 2);
+        resting.height *
+        (1 + (lens.liftedThickness - 1) * lift) /
+        (1 + stretch / 2);
     return Rect.fromCenter(
-      center: Offset((position + 0.5) * slot, row.height / 2),
+      center: resting.center,
       width: width,
       height: height,
     );

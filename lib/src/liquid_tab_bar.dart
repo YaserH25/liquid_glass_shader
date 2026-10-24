@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,7 +7,9 @@ import 'glass_quality.dart';
 import 'glass_scope.dart';
 import 'glass_surface.dart';
 import 'liquid_glass_shader_loader.dart';
-import 'liquid_tab_bar_style.dart';
+import 'liquid_tab_bar_lens.dart';
+import 'liquid_tab_bar_metrics.dart';
+import 'liquid_tab_bar_motion.dart';
 import 'liquid_tab_builder.dart';
 import 'tab_bar/lens_motion.dart';
 import 'tab_bar/lifted_lens.dart';
@@ -31,14 +32,19 @@ import 'tab_bar/tab_row.dart';
 /// * A change of [selectedIndex] from elsewhere slides the lens, stretched
 ///   along its path in proportion to its speed.
 ///
+/// The bar takes the whole width it is given and [metrics.thickness] of
+/// height. Its glass hugs the tabs, at [LiquidTabBarMetrics.tabExtent] each,
+/// placed by [alignment], unless there is not room, when it fills the width;
+/// touches beside the glass reach the page under the bar.
+///
 /// Reduced motion keeps the lens flat and moves it from tab to tab at once.
 ///
 /// Tabs are passive content: the bar handles touch and screen readers, so a
 /// tab must not add an `InkWell`, a `GestureDetector` or button semantics of
 /// its own (a tap would select twice). Each tab is a button for screen
-/// readers, with its selected state, labelled by the text [tabBuilder] draws. Tab wrappers are keyed
-/// `ValueKey('liquid_tab_$index')`, the resting lens
-/// `Key('liquid_tab_bar_lens')` and the lifted lens
+/// readers, with its selected state, labelled by the text [tabBuilder]
+/// draws. Tab wrappers are keyed `ValueKey('liquid_tab_$index')`, the
+/// resting lens `Key('liquid_tab_bar_lens')` and the lifted lens
 /// `Key('liquid_tab_bar_lifted_lens')`, for tests.
 class LiquidTabBar extends StatefulWidget {
   /// A bar of [tabCount] tabs with [selectedIndex] current.
@@ -48,13 +54,15 @@ class LiquidTabBar extends StatefulWidget {
     required this.tabBuilder,
     required this.selectedIndex,
     required this.onSelected,
-    required this.height,
-    this.inset = 4,
+    this.metrics = LiquidTabBarMetrics.stacked,
+    this.motion,
+    this.lens = LiquidTabBarLens.standard,
+    this.alignment = Alignment.center,
     this.shadows,
-    this.style,
     this.haptics = true,
     this.shareBackdrop = false,
     this.minimized = false,
+    this.minimizedAlignment = AlignmentDirectional.bottomStart,
     this.onExpand,
     this.minimizedBuilder,
   }) : assert(tabCount > 0),
@@ -72,17 +80,21 @@ class LiquidTabBar extends StatefulWidget {
   /// Called with the chosen tab on release, or on a screen-reader tap.
   final ValueChanged<int> onSelected;
 
-  /// Height of the row of tabs, inside the glass.
-  final double height;
+  /// The bar's sizes: [LiquidTabBarMetrics.stacked] by default.
+  final LiquidTabBarMetrics metrics;
 
-  /// Inset of the tabs from the edge of the glass, on every side.
-  final double inset;
+  /// How the lens moves: [LiquidTabBarMotion.standard] by default.
+  final LiquidTabBarMotion? motion;
+
+  /// How the lens looks once lifted.
+  final LiquidTabBarLens lens;
+
+  /// Where the glass sits when it hugs its tabs: centred by default, as on
+  /// iOS.
+  final AlignmentGeometry alignment;
 
   /// Shadows outside the bar's glass.
   final List<BoxShadow>? shadows;
-
-  /// Lens motion and optics; [LiquidTabBarStyle.standard] by default.
-  final LiquidTabBarStyle? style;
 
   /// A selection tick for each tab the lens crosses.
   final bool haptics;
@@ -92,12 +104,16 @@ class LiquidTabBar extends StatefulWidget {
   /// because it refracts the bar's own tabs.
   final bool shareBackdrop;
 
-  /// Shrinks the bar into a pill at its start edge that shows only the
-  /// current tab ([minimizedBuilder]), as the iOS 26 tab bar does while a
-  /// page scrolls down. The bar keeps its size, so the page does not move;
-  /// touches beside the pill reach the page under the bar. A screen reader
-  /// always gets the full bar.
+  /// Shrinks the bar into a pill that shows only the current tab
+  /// ([minimizedBuilder]), as the iOS 26 tab bar does while a page scrolls
+  /// down. The bar keeps its size, so the page does not move; touches beside
+  /// the pill reach the page under the bar. A screen reader always gets the
+  /// full bar.
   final bool minimized;
+
+  /// Where the pill sits: at the bottom of the start edge by default, as on
+  /// iOS.
+  final AlignmentGeometry minimizedAlignment;
 
   /// Called when the minimized pill is tapped; expand the bar here.
   final VoidCallback? onExpand;
@@ -131,7 +147,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   /// The whole bar swelling a little while a finger is on it.
   late final Animation<double> _pressedScale = _lens.lift.drive(
     Animatable.fromCallback(
-      (lift) => 1 + (_style.pressedScale - 1) * math.max(lift, 0.0),
+      (lift) => 1 + (_motion.pressedScale - 1) * math.max(lift, 0.0),
     ),
   );
 
@@ -152,7 +168,9 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   bool? _wasRtl;
 
   int get _count => widget.tabCount;
-  LiquidTabBarStyle get _style => widget.style ?? LiquidTabBarStyle.standard;
+  LiquidTabBarMetrics get _metrics => widget.metrics;
+  LiquidTabBarMotion get _motion =>
+      widget.motion ?? LiquidTabBarMotion.standard;
   bool get _reduceMotion => MediaQuery.disableAnimationsOf(context);
 
   /// Minimized only when asked, and never for a screen reader.
@@ -167,7 +185,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
   @override
   void initState() {
     super.initState();
-    _lens.style = _style;
+    _lens.config = _motion;
   }
 
   @override
@@ -196,14 +214,19 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     if (first) {
       _minimize.value = target;
     } else {
-      springTo(_minimize, _style.minimize, target, reduceMotion: _reduceMotion);
+      springTo(
+        _minimize,
+        _motion.minimize,
+        target,
+        reduceMotion: _reduceMotion,
+      );
     }
   }
 
   @override
   void didUpdateWidget(LiquidTabBar old) {
     super.didUpdateWidget(old);
-    _lens.style = _style;
+    _lens.config = _motion;
     if (old.tabCount != widget.tabCount) {
       // Slots are counted from the physical left, so in RTL the same tab
       // sits in a different slot once the count changes.
@@ -331,43 +354,60 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     // At the refraction tier the lifted lens refracts the real tabs beneath
     // it; otherwise it shows a magnified copy over a cut-out.
     final refracts = GlassScope.qualityOf(context) == GlassQuality.refraction;
-    final minimized = _minimizeTarget == 1;
-    final fullHeight = widget.height + 2 * widget.inset;
-    final pillSize = _style.minimizedSize;
+    final metrics = _metrics;
+    final direction = Directionality.of(context);
+    final barAlignment = widget.alignment.resolve(direction);
+    final pillAlignment = widget.minimizedAlignment.resolve(direction);
+    final pillSize = metrics.minimizedSize ?? metrics.thickness;
 
-    // The bar keeps its full box, so the page under it never moves; only the
-    // glass shrinks towards the start edge, and the box around the pill
-    // takes no touches.
+    // The bar keeps its whole box, so the page under it never moves; only
+    // the glass in it hugs the tabs or shrinks into the pill, and the box
+    // around the glass takes no touches.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final fullWidth = constraints.maxWidth;
+        final hug = _count * metrics.tabExtent + 2 * metrics.inset;
+        final length = math.min(constraints.maxWidth, hug);
+        assert(
+          length.isFinite,
+          'A LiquidTabBar that fills (an infinite tabExtent) needs a '
+          'bounded width.',
+        );
+        final box =
+            Offset.zero &
+            Size(
+              constraints.hasBoundedWidth ? constraints.maxWidth : length,
+              metrics.thickness,
+            );
+        final bar = barAlignment.inscribe(Size(length, metrics.thickness), box);
+        final shrunk = pillAlignment.inscribe(Size.square(pillSize), box);
         final glass = _glass(
           tabs,
           lensTabs,
           pill,
-          row: Size(fullWidth - 2 * widget.inset, widget.height),
+          row: Size(
+            length - 2 * metrics.inset,
+            metrics.thickness - 2 * metrics.inset,
+          ),
           refracts: refracts,
-          minimized: minimized,
+          pillAlignment: pillAlignment,
+          pillSize: pillSize,
         );
-        return SizedBox(
-          width: fullWidth,
-          height: fullHeight,
+        return SizedBox.fromSize(
+          size: box.size,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               AnimatedBuilder(
                 animation: _minimize,
                 child: glass,
-                builder: (context, glass) {
-                  final minimize = _minimize.value.clamp(0.0, 1.0);
-                  return PositionedDirectional(
-                    start: 0,
-                    bottom: 0,
-                    width: lerpDouble(fullWidth, pillSize, minimize),
-                    height: lerpDouble(fullHeight, pillSize, minimize),
-                    child: glass!,
-                  );
-                },
+                builder: (context, glass) => Positioned.fromRect(
+                  rect: Rect.lerp(
+                    bar,
+                    shrunk,
+                    _minimize.value.clamp(0.0, 1.0),
+                  )!,
+                  child: glass!,
+                ),
               ),
             ],
           ),
@@ -382,8 +422,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     _lens.position.value,
     lift: _lens.lift.value,
     stretch: _reduceMotion ? 0.0 : _lens.stretch.value,
-    liftedWidth: _style.liftedWidth,
-    liftedHeight: _style.liftedHeight,
+    lens: widget.lens,
+    gap: _metrics.lensGap,
   );
 
   Widget _glass(
@@ -392,17 +432,21 @@ class _LiquidTabBarState extends State<LiquidTabBar>
     Widget? pill, {
     required Size row,
     required bool refracts,
-    required bool minimized,
+    required Alignment pillAlignment,
+    required double pillSize,
   }) {
+    final minimized = _minimizeTarget == 1;
+    final inset = _metrics.inset;
     return ScaleTransition(
       scale: _pressedScale,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           GlassSurface(
+            borderRadius: _metrics.borderRadius,
             shareBackdrop: widget.shareBackdrop,
             shadows: widget.shadows,
-            padding: EdgeInsets.all(widget.inset),
+            padding: EdgeInsets.all(inset),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -412,10 +456,11 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                     excluding: minimized,
                     child: FadeTransition(
                       opacity: _rowOpacity,
-                      // The row keeps its full width while the glass shrinks
-                      // over it, so the tabs never squeeze.
+                      // The row keeps its full length while the glass
+                      // shrinks over it towards the pill, so the tabs never
+                      // squeeze.
                       child: OverflowBox(
-                        alignment: AlignmentDirectional.centerStart,
+                        alignment: Alignment(pillAlignment.x, 0),
                         minWidth: row.width,
                         maxWidth: row.width,
                         minHeight: row.height,
@@ -445,7 +490,8 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                   MinimizedPill(
                     opacity: _pillOpacity,
                     minimized: minimized,
-                    size: _style.minimizedSize - 2 * widget.inset,
+                    alignment: pillAlignment,
+                    size: pillSize - 2 * inset,
                     onTap: widget.onExpand,
                     child: pill,
                   ),
@@ -456,12 +502,15 @@ class _LiquidTabBarState extends State<LiquidTabBar>
           // glass clip. Same inset as the glass content, so coordinates match.
           Positioned.fill(
             child: Padding(
-              padding: EdgeInsets.all(widget.inset),
+              padding: EdgeInsets.all(inset),
               child: IgnorePointer(
                 child: ExcludeSemantics(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final row = Size(constraints.maxWidth, widget.height);
+                      final row = Size(
+                        constraints.maxWidth,
+                        _metrics.thickness - 2 * inset,
+                      );
                       return AnimatedBuilder(
                         animation: _lensMoves,
                         builder: (context, _) {
@@ -472,7 +521,7 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                             row: row,
                             lift: lift,
                             refracts: refracts,
-                            style: _style,
+                            optics: widget.lens,
                             tabs: lensTabs,
                           );
                         },

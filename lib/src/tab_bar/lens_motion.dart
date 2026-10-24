@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../liquid_tab_bar_style.dart';
+import '../liquid_tab_bar_motion.dart';
 import 'springs.dart';
 
 /// How a tab bar's lens moves: where it is along the row, how far it is
@@ -34,7 +34,7 @@ class LensMotion {
   final ValueNotifier<double> _stretch = ValueNotifier(0);
 
   /// The springs and the feel; the owner keeps it current.
-  LiquidTabBarStyle style = LiquidTabBarStyle.standard;
+  LiquidTabBarMotion config = LiquidTabBarMotion.standard;
 
   /// Moves the lens at once and keeps it flat; the owner keeps it current.
   bool reduceMotion = false;
@@ -74,7 +74,7 @@ class LensMotion {
 
   /// Springs the lens onto [slot].
   void settleOn(double slot) =>
-      springTo(position, style.settle, slot, reduceMotion: reduceMotion);
+      springTo(position, config.settle, slot, reduceMotion: reduceMotion);
 
   /// Lifts the lens under a finger, or drops it back into the bar.
   void setLifted(bool lifted) {
@@ -84,7 +84,7 @@ class LensMotion {
     }
     springTo(
       lift,
-      lifted ? style.lift : style.drop,
+      lifted ? config.lift : config.drop,
       lifted ? 1 : 0,
       reduceMotion: false,
     );
@@ -125,7 +125,7 @@ class LensMotion {
     final seconds = (elapsed - _lastTick).inMicroseconds / 1e6;
     _lastTick = elapsed;
     // Exponential decay: frame-rate independent, never overshoots.
-    _gap *= math.exp(-seconds * style.catchUp);
+    _gap *= math.exp(-seconds * config.catchUp);
     if (_gap.abs() < 0.005) {
       _gap = 0;
       _catchUp.stop();
@@ -134,12 +134,12 @@ class LensMotion {
   }
 
   /// [raw] slot position, resisting more and more past the first and last
-  /// slot so the lens never travels more than [LiquidTabBarStyle.rubberBand]
+  /// slot so the lens never travels more than [LiquidTabBarMotion.rubberBand]
   /// beyond them.
   double _rubberBand(double raw, double last) {
     final over = raw < 0 ? -raw : raw - last;
     if (over <= 0) return raw;
-    final reach = style.rubberBand;
+    final reach = config.rubberBand;
     final pulled = reach * (1 - 1 / (over / reach + 1));
     return raw < 0 ? -pulled : last + pulled;
   }
@@ -159,15 +159,15 @@ class LensMotion {
     final measured = (position.value - _lastPosition) / seconds;
     _lastPosition = position.value;
     _speed +=
-        (measured - _speed) * (1 - math.exp(-seconds * style.speedSmoothing));
+        (measured - _speed) * (1 - math.exp(-seconds * config.speedSmoothing));
     final target = math.min(
-      _speed.abs() * style.stretchPerSpeed,
-      style.maxStretch,
+      _speed.abs() * config.stretchPerSpeed,
+      config.maxStretch,
     );
 
     // The loose spring, in small fixed steps so it stays stable at any frame
     // rate.
-    final spring = style.jelly;
+    final spring = config.jelly;
     var stretch = _stretch.value;
     var velocity = _stretchVelocity;
     for (var left = seconds; left > 0; left -= _jellyStep) {

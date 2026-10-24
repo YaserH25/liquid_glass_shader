@@ -1,11 +1,13 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liquid_glass_shader/liquid_glass_shader.dart';
 import 'package:liquid_glass_shader/src/tab_bar/tab_bar_geometry.dart';
 
 void main() {
   const row = Size(400, 50);
   const ltr = TabBarGeometry(count: 4, rtl: false);
   const rtl = TabBarGeometry(count: 4, rtl: true);
+  const optics = LiquidTabBarLens(liftedExtent: 1.2, liftedThickness: 1.3);
 
   test('maps tabs to slots from the physical left', () {
     expect([for (var i = 0; i < 4; i++) ltr.flip(i)], [0, 1, 2, 3]);
@@ -19,38 +21,17 @@ void main() {
   });
 
   test('the resting lens fills its slot', () {
-    final lens = ltr.lensRect(
-      row,
-      2,
-      lift: 0,
-      stretch: 0,
-      liftedWidth: 1.2,
-      liftedHeight: 1.3,
-    );
+    final lens = ltr.lensRect(row, 2, lift: 0, stretch: 0, lens: optics);
     expect(lens, const Rect.fromLTWH(200, 0, 100, 50));
   });
 
   test('the lens grows as it lifts and draws out as it moves', () {
-    final lifted = ltr.lensRect(
-      row,
-      0,
-      lift: 1,
-      stretch: 0,
-      liftedWidth: 1.2,
-      liftedHeight: 1.3,
-    );
+    final lifted = ltr.lensRect(row, 0, lift: 1, stretch: 0, lens: optics);
     expect(lifted.center, const Offset(50, 25));
     expect(lifted.width, closeTo(120, 1e-9));
     expect(lifted.height, closeTo(65, 1e-9));
 
-    final moving = ltr.lensRect(
-      row,
-      0,
-      lift: 0,
-      stretch: 0.2,
-      liftedWidth: 1.2,
-      liftedHeight: 1.3,
-    );
+    final moving = ltr.lensRect(row, 0, lift: 0, stretch: 0.2, lens: optics);
     expect(moving.width, closeTo(120, 1e-9));
     expect(moving.height, lessThan(50));
   });

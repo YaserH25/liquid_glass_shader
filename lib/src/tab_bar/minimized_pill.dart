@@ -1,14 +1,15 @@
 import 'package:flutter/widgets.dart';
 
 /// The current tab inside the pill a minimized tab bar shrinks into,
-/// fading in with [opacity] where the pill sits, at the start edge, so it
-/// never drifts across the tabs while the bar grows.
+/// fading in with [opacity] where the pill sits ([alignment]), so it never
+/// drifts across the tabs while the bar grows.
 class MinimizedPill extends StatelessWidget {
   /// [child] in a pill of [size], inside the glass's inset.
   const MinimizedPill({
     super.key,
     required this.opacity,
     required this.minimized,
+    required this.alignment,
     required this.size,
     required this.onTap,
     required this.child,
@@ -20,6 +21,9 @@ class MinimizedPill extends StatelessWidget {
   /// Whether the bar is minimized, rather than shrinking or growing; only
   /// then does the pill take taps.
   final bool minimized;
+
+  /// Where the pill sits in the bar.
+  final Alignment alignment;
 
   /// The pill's content box, inside the glass's inset.
   final double size;
@@ -33,7 +37,7 @@ class MinimizedPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final content = Align(
-      alignment: AlignmentDirectional.centerStart,
+      alignment: alignment,
       child: SizedBox.square(
         dimension: size,
         child: Center(

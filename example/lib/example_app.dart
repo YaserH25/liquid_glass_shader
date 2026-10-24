@@ -47,7 +47,6 @@ class _ExampleAppState extends State<ExampleApp> {
                 tabCount: _labels.length,
                 selectedIndex: _tab,
                 onSelected: (index) => setState(() => _tab = index),
-                height: 64,
                 shadows: const [
                   BoxShadow(
                     color: Color(0x29000000),

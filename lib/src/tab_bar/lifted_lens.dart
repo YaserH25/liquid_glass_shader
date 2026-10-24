@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../glass_backdrop.dart';
 import '../glass_lens.dart';
-import '../liquid_tab_bar_style.dart';
+import '../liquid_tab_bar_lens.dart';
 
 /// The lens lifted under a finger, standing over the bar at [lens]: clear
 /// glass, larger than a tab, magnifying the tabs under it.
@@ -18,7 +18,7 @@ class LiftedLens extends StatelessWidget {
     required this.row,
     required this.lift,
     required this.refracts,
-    required this.style,
+    required this.optics,
     required this.tabs,
   });
 
@@ -34,15 +34,15 @@ class LiftedLens extends StatelessWidget {
   /// Whether the lens refracts the tabs beneath it.
   final bool refracts;
 
-  /// The lens's optics and magnification.
-  final LiquidTabBarStyle style;
+  /// The lens's size, optics and magnification.
+  final LiquidTabBarLens optics;
 
   /// A copy of the row, every tab drawn as current, for the lens to magnify.
   final Widget tabs;
 
   @override
   Widget build(BuildContext context) {
-    final magnification = 1 + (style.magnification - 1) * lift;
+    final magnification = 1 + (optics.magnification - 1) * lift;
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -56,10 +56,10 @@ class LiftedLens extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: GlassBackdrop(
-                    band: style.lensBand,
-                    bend: style.lensBend * lift,
-                    dispersion: style.lensDispersion,
-                    specular: style.lensSpecular * lift,
+                    band: optics.band,
+                    bend: optics.bend * lift,
+                    dispersion: optics.dispersion,
+                    specular: optics.specular * lift,
                     magnify: magnification,
                     child: const SizedBox.expand(),
                   ),

@@ -100,7 +100,12 @@ class _Scene extends StatelessWidget {
               tabCount: _icons.length,
               selectedIndex: selected,
               onSelected: (index) => tab.value = index,
-              height: 64,
+              // A filling bar of the same size as before the presets, so
+              // its frame times compare with earlier runs.
+              metrics: const LiquidTabBarMetrics(
+                thickness: 72,
+                tabExtent: double.infinity,
+              ),
               tabBuilder: (context, index, active) => Icon(
                 _icons[index],
                 color: active ? Colors.indigo : Colors.black54,

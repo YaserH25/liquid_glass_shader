@@ -98,7 +98,6 @@ void main() {
               tabBuilder: (_, i, _) => Text('$i'),
               selectedIndex: 0,
               onSelected: (_) {},
-              height: 56,
               shareBackdrop: true,
             ),
           ),

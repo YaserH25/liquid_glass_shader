@@ -5,7 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_shader/liquid_glass_shader.dart';
 
-final _style = LiquidTabBarStyle.standard;
+final _motion = LiquidTabBarMotion.standard;
+const _lens = LiquidTabBarLens.standard;
+
+/// A 76 high bar that fills its width, as wide as the row of tabs is.
+const _metrics = LiquidTabBarMetrics(thickness: 76, tabExtent: double.infinity);
 
 /// The bar is 408 wide; inside the glass's 4dp inset each tab is 100 wide.
 class _Harness extends StatefulWidget {
@@ -43,7 +47,7 @@ class _HarnessState extends State<_Harness> {
               tabCount: 4,
               tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
               selectedIndex: selected,
-              height: 68,
+              metrics: _metrics,
               onSelected: (index) {
                 widget.selections.add(index);
                 select(index);
@@ -170,12 +174,12 @@ void main() {
       // Larger than the tab, and taller than the bar: it stands over it.
       expect(
         lens.width,
-        closeTo(100 * _style.liftedWidth * _style.pressedScale, 2),
+        closeTo(100 * _lens.liftedExtent * _motion.pressedScale, 2),
       );
       expect(lens.height, greaterThan(restingBar.height));
       expect(
         tester.getRect(find.byType(GlassSurface)).width,
-        closeTo(restingBar.width * _style.pressedScale, 1),
+        closeTo(restingBar.width * _motion.pressedScale, 1),
       );
       expect(selections, isEmpty);
 
@@ -197,7 +201,7 @@ void main() {
       // Bar swell × lens magnification against the bar's own label.
       expect(
         tester.getRect(inLens).width / tester.getRect(inBar).width,
-        closeTo(_style.magnification, 0.01),
+        closeTo(_lens.magnification, 0.01),
       );
       await gesture.up();
       await tester.pumpAndSettle();
@@ -391,7 +395,7 @@ void main() {
                   return Center(child: Text('ABCD'[i]));
                 },
                 selectedIndex: 0,
-                height: 68,
+                metrics: _metrics,
                 onSelected: (_) {},
               ),
             ),
@@ -469,7 +473,7 @@ void main() {
       expect(pastLast, greaterThan(0));
       expect(
         pastLast,
-        lessThanOrEqualTo(100 * _style.rubberBand * _style.pressedScale),
+        lessThanOrEqualTo(100 * _motion.rubberBand * _motion.pressedScale),
       );
       await gesture.up();
       await tester.pumpAndSettle();
@@ -493,6 +497,150 @@ void main() {
       await tester.pump();
       expect(selections, [1]);
       expect(tester.getRect(_restingLens).left, left + 100);
+    });
+  });
+
+  group('sizes', () {
+    /// A bar in a 408-wide space over a page that counts the taps reaching
+    /// it.
+    Future<List<String>> pumpSized(
+      WidgetTester tester, {
+      LiquidTabBarMetrics metrics = LiquidTabBarMetrics.stacked,
+      AlignmentGeometry alignment = Alignment.center,
+      AlignmentGeometry minimizedAlignment = AlignmentDirectional.bottomStart,
+      bool minimized = false,
+      TextDirection direction = TextDirection.ltr,
+    }) async {
+      final calls = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: direction,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => calls.add('page'),
+                  ),
+                ),
+                Center(
+                  child: SizedBox(
+                    width: 408,
+                    child: LiquidTabBar(
+                      tabCount: 4,
+                      tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
+                      selectedIndex: 0,
+                      metrics: metrics,
+                      alignment: alignment,
+                      minimized: minimized,
+                      minimizedAlignment: minimizedAlignment,
+                      onSelected: (_) => calls.add('bar'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return calls;
+    }
+
+    Rect bar(WidgetTester tester) => tester.getRect(find.byType(LiquidTabBar));
+    Rect glass(WidgetTester tester) =>
+        tester.getRect(find.byType(GlassSurface));
+
+    testWidgets('is as thick as its metrics, glass included', (tester) async {
+      await pumpSized(tester, metrics: LiquidTabBarMetrics.compactInline);
+      expect(bar(tester).height, 44);
+      expect(glass(tester).height, 44);
+    });
+
+    testWidgets('hugs its tabs, centred, when there is room', (tester) async {
+      final calls = await pumpSized(tester);
+      // Four 90-long slots and the inset at both ends.
+      expect(glass(tester).width, 4 * 90 + 2 * 4);
+      expect(glass(tester).center, bar(tester).center);
+      expect(bar(tester).width, 408);
+
+      // Beside the glass, a touch reaches the page under the bar.
+      await tester.tapAt(bar(tester).centerLeft + const Offset(10, 0));
+      expect(calls, ['page']);
+    });
+
+    testWidgets('fills its width when the tabs would not fit', (tester) async {
+      await pumpSized(
+        tester,
+        metrics: LiquidTabBarMetrics.stacked.copyWith(tabExtent: 200),
+      );
+      expect(glass(tester), bar(tester));
+    });
+
+    testWidgets('sits where its alignment says, in RTL too', (tester) async {
+      await pumpSized(tester, alignment: AlignmentDirectional.centerStart);
+      expect(glass(tester).left, bar(tester).left);
+      await pumpSized(
+        tester,
+        alignment: AlignmentDirectional.centerStart,
+        direction: TextDirection.rtl,
+      );
+      expect(glass(tester).right, bar(tester).right);
+    });
+
+    testWidgets('a lens gap keeps the resting lens off its slot edges', (
+      tester,
+    ) async {
+      await pumpSized(
+        tester,
+        metrics: _metrics.copyWith(
+          lensGap: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        ),
+      );
+      final lens = tester.getRect(_restingLens);
+      expect(lens.size, const Size(100 - 20, 68 - 12));
+      expect(lens.center, tester.getCenter(_tab(0)));
+    });
+
+    testWidgets('rounds its corners as the metrics say, a capsule without', (
+      tester,
+    ) async {
+      await pumpSized(tester);
+      expect(
+        tester.widget<GlassSurface>(find.byType(GlassSurface)).borderRadius,
+        isNull,
+      );
+      await pumpSized(
+        tester,
+        metrics: LiquidTabBarMetrics.stacked.copyWith(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      );
+      expect(
+        tester.widget<GlassSurface>(find.byType(GlassSurface)).borderRadius,
+        BorderRadius.circular(16),
+      );
+    });
+
+    testWidgets('minimizes into a pill as thick as the bar, where it is told', (
+      tester,
+    ) async {
+      await pumpSized(
+        tester,
+        minimized: true,
+        minimizedAlignment: AlignmentDirectional.bottomEnd,
+      );
+      expect(glass(tester).size, const Size.square(62));
+      expect(glass(tester).bottomRight, bar(tester).bottomRight);
+
+      await pumpSized(
+        tester,
+        minimized: true,
+        metrics: LiquidTabBarMetrics.stacked.copyWith(minimizedSize: 48),
+      );
+      expect(glass(tester).size, const Size.square(48));
+      expect(glass(tester).bottomLeft, bar(tester).bottomLeft);
     });
   });
 
@@ -546,7 +694,7 @@ void main() {
               tabCount: 4,
               tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
               selectedIndex: 0,
-              height: 68,
+              metrics: _metrics,
               minimized: minimized,
               onSelected: (_) {},
             ),
@@ -590,7 +738,7 @@ void main() {
                 tabCount: count,
                 tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
                 selectedIndex: selected,
-                height: 68,
+                metrics: _metrics,
                 haptics: haptics,
                 onSelected: (index) => selections?.add(index),
               ),
@@ -681,7 +829,7 @@ void main() {
           tabBuilder: (_, _, _) => const SizedBox(),
           selectedIndex: 2,
           onSelected: (_) {},
-          height: 68,
+          metrics: _metrics,
         ),
         throwsAssertionError,
       );
@@ -725,7 +873,7 @@ void main() {
                         tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
                         minimizedBuilder: (_, i) => Text('min$i'),
                         selectedIndex: selected,
-                        height: 68,
+                        metrics: _metrics,
                         minimized: minimized,
                         onExpand: () => log.calls.add('expand'),
                         onSelected: log.selections.add,
@@ -759,8 +907,8 @@ void main() {
       await pumpMinimizable(tester, minimized: true);
       await tester.pumpAndSettle();
       final pill = glass(tester);
-      expect(pill.width, _style.minimizedSize);
-      expect(pill.height, _style.minimizedSize);
+      expect(pill.width, _metrics.thickness);
+      expect(pill.height, _metrics.thickness);
       expect(pill.left, bar(tester).left);
       expect(pill.bottom, bar(tester).bottom);
       expect(find.text('min2').hitTestable(), findsOneWidget);
@@ -774,7 +922,7 @@ void main() {
         direction: TextDirection.rtl,
       );
       await tester.pumpAndSettle();
-      expect(glass(tester).width, _style.minimizedSize);
+      expect(glass(tester).width, _metrics.thickness);
       expect(glass(tester).right, bar(tester).right);
     });
 
@@ -803,7 +951,7 @@ void main() {
       await tester.pumpAndSettle();
       await pumpMinimizable(tester, minimized: false);
       await _advance(tester, 60);
-      expect(glass(tester).width, inExclusiveRange(_style.minimizedSize, 408));
+      expect(glass(tester).width, inExclusiveRange(_metrics.thickness, 408));
       await tester.pumpAndSettle();
       expect(glass(tester).width, 408);
       expect(find.text('A').hitTestable(), findsOneWidget);
@@ -813,7 +961,7 @@ void main() {
       await pumpMinimizable(tester, minimized: false, reduceMotion: true);
       await pumpMinimizable(tester, minimized: true, reduceMotion: true);
       await tester.pump();
-      expect(glass(tester).width, _style.minimizedSize);
+      expect(glass(tester).width, _metrics.thickness);
     });
 
     testWidgets('stays a full bar for a screen reader', (tester) async {

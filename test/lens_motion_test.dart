@@ -4,7 +4,7 @@ import 'package:liquid_glass_shader/src/tab_bar/lens_motion.dart';
 
 void main() {
   late LensMotion motion;
-  final style = LiquidTabBarStyle.standard;
+  final style = LiquidTabBarMotion.standard;
 
   setUp(() => motion = LensMotion(vsync: const TestVSync()));
   tearDown(() => motion.dispose());
