@@ -496,6 +496,70 @@ void main() {
     });
   });
 
+  group('rebuilds', () {
+    // A rebuild of the bar would hand the glass a new widget; the same
+    // instance frame after frame means only the lens was rebuilt.
+    GlassSurface glass(WidgetTester tester) =>
+        tester.widget<GlassSurface>(find.byType(GlassSurface));
+
+    Future<void> expectGlassKept(WidgetTester tester, {int frames = 12}) async {
+      final before = glass(tester);
+      for (var i = 0; i < frames; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(identical(glass(tester), before), isTrue, reason: 'frame $i');
+      }
+    }
+
+    testWidgets('a sliding lens leaves the glass alone', (tester) async {
+      await _pump(tester);
+      tester.state<_HarnessState>(find.byType(_Harness)).select(3);
+      await tester.pump();
+      await expectGlassKept(tester);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a lifting, dragged lens leaves the glass alone', (
+      tester,
+    ) async {
+      await _pump(tester);
+      final gesture = await tester.startGesture(
+        tester.getCenter(_tab(0)) - const Offset(30, 0),
+      );
+      // The press marks the tab under the finger: one rebuild.
+      await tester.pump();
+      final before = glass(tester);
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(const Offset(4, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(identical(glass(tester), before), isTrue, reason: 'frame $i');
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('minimizing leaves the glass alone', (tester) async {
+      Widget bar({required bool minimized}) => MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 408,
+            child: LiquidTabBar(
+              tabCount: 4,
+              tabBuilder: (_, i, _) => Center(child: Text('ABCD'[i])),
+              selectedIndex: 0,
+              height: 68,
+              minimized: minimized,
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(bar(minimized: false));
+      await tester.pumpWidget(bar(minimized: true));
+      await expectGlassKept(tester);
+      await tester.pumpAndSettle();
+    });
+  });
+
   testWidgets('screen readers tap a tab directly', (tester) async {
     final handle = tester.ensureSemantics();
     final selections = await _pump(tester);
