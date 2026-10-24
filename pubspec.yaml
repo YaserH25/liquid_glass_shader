@@ -2,7 +2,7 @@ name: liquid_glass_shader
 description: >-
   iOS-style liquid glass for Flutter: a refraction shader on Impeller, blur and
   solid fallbacks, a frame-time guard, and a liquid glass tab bar.
-version: 0.2.0
+version: 0.3.0
 repository: https://github.com/YaserH25/liquid_glass_shader
 issue_tracker: https://github.com/YaserH25/liquid_glass_shader/issues
 topics: [glass, shader, ui, widget, impeller]
