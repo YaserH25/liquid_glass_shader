@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show DisplayFeature, DisplayFeatureState, DisplayFeatureType;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_shader/liquid_glass_shader.dart';
@@ -983,6 +984,38 @@ void main() {
       );
       expect(glass(tester).center.dx, 400);
     });
+  });
+
+  testWidgets('a label too long for its slot scales down, never cut short', (
+    tester,
+  ) async {
+    const long = 'A label far too long for one tab';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 408,
+            child: LiquidTabBar(
+              tabCount: 4,
+              tabBuilder: (_, i, _) => const Text(
+                long,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              selectedIndex: 0,
+              metrics: _metrics,
+              onSelected: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    final label = find.descendant(of: _tab(0), matching: find.text(long));
+    expect(
+      tester.renderObject<RenderParagraph>(label).didExceedMaxLines,
+      isFalse,
+    );
+    expect(tester.getRect(label).width, lessThanOrEqualTo(100));
   });
 
   group('rebuilds', () {
