@@ -98,17 +98,28 @@ class PlaygroundControls extends StatelessWidget {
                 (mode) => s.copyWith(themeMode: mode),
               ),
             ),
-            _switch('Labels', s.labels, (on) => s.copyWith(labels: on)),
-            _switch(
-              'Minimize on scroll',
-              s.minimizeOnScroll,
-              (on) => s.copyWith(minimizeOnScroll: on),
+            _row(
+              context,
+              'Labels',
+              _switch(s.labels, (on) => s.copyWith(labels: on)),
             ),
-            _switch('Tick', s.tick, (on) => s.copyWith(tick: on)),
-            _switch(
+            _row(
+              context,
+              'Minimize on scroll',
+              _switch(
+                s.minimizeOnScroll,
+                (on) => s.copyWith(minimizeOnScroll: on),
+              ),
+            ),
+            _row(
+              context,
+              'Tick',
+              _switch(s.tick, (on) => s.copyWith(tick: on)),
+            ),
+            _row(
+              context,
               'Tinted lens',
-              s.tintedLens,
-              (on) => s.copyWith(tintedLens: on),
+              _switch(s.tintedLens, (on) => s.copyWith(tintedLens: on)),
             ),
           ],
         ),
@@ -147,15 +158,6 @@ class PlaygroundControls extends StatelessWidget {
     onSelectionChanged: (values) => onChanged(change(values.single)),
   );
 
-  Widget _switch(
-    String label,
-    bool value,
-    PlaygroundSettings Function(bool on) change,
-  ) => SwitchListTile(
-    contentPadding: EdgeInsets.zero,
-    dense: true,
-    title: Text(label),
-    value: value,
-    onChanged: (on) => onChanged(change(on)),
-  );
+  Widget _switch(bool value, PlaygroundSettings Function(bool on) change) =>
+      Switch(value: value, onChanged: (on) => onChanged(change(on)));
 }
