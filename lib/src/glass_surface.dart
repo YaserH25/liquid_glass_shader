@@ -222,13 +222,13 @@ class _GlassSurfaceState extends State<GlassSurface> {
     );
 
     final content = CustomPaint(
-      foregroundPainter: widget.rim || widget.edge
+      // The whole rim fades with the strength, and none is drawn at 0.
+      foregroundPainter: (widget.rim || widget.edge) && k > 0
           ? GlassRimPainter(
               borderRadius: radius,
-              rim: widget.rim
-                  ? GlassSurface._fade(theme.rim, k)
-                  : const Color(0x00000000),
-              edge: widget.edge ? GlassSurface._fade(theme.edge, k) : null,
+              rim: widget.rim ? theme.rim : null,
+              edge: widget.edge ? theme.edge : null,
+              opacity: k,
             )
           : null,
       child: DecoratedBox(
