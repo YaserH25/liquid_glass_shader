@@ -67,7 +67,9 @@ void main() {
       expect(_tint(tester), _light.solid);
     });
 
-    testWidgets('after two slow windows glass turns opaque', (tester) async {
+    testWidgets('after a second of late frames glass turns opaque', (
+      tester,
+    ) async {
       await tester.pumpWidget(_app(_glass));
       final scope = tester.state<GlassScopeState>(find.byType(GlassScope));
       // A second of frames, all late.
@@ -75,7 +77,6 @@ void main() {
         raster: const Duration(milliseconds: 30),
         gap: null,
       ));
-      scope.recordFrames(slow, glassOnScreen: true);
       scope.recordFrames(slow, glassOnScreen: true);
       await tester.pump();
 

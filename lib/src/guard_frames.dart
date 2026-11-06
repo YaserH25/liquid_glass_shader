@@ -37,3 +37,32 @@ List<GuardFrame> guardFramesFrom(
   }
   return frames;
 }
+
+/// Frames in a row that were all drawn with glass on screen, or all
+/// without.
+typedef GuardRun = ({List<GuardFrame> frames, bool glass});
+
+/// [timings] as [guardFramesFrom] pairs them, in runs of frames drawn with
+/// glass on screen and without: [glassFrames] holds the frame numbers of
+/// those drawn with it.
+List<GuardRun> guardRunsFrom(
+  List<FrameTiming> timings, {
+  FrameTiming? previous,
+  required Set<int> askedForNext,
+  required Set<int> glassFrames,
+}) {
+  final frames = guardFramesFrom(
+    timings,
+    previous: previous,
+    askedForNext: askedForNext,
+  );
+  final runs = <GuardRun>[];
+  for (var i = 0; i < timings.length; i++) {
+    final glass = glassFrames.contains(timings[i].frameNumber);
+    if (runs.isEmpty || runs.last.glass != glass) {
+      runs.add((frames: [], glass: glass));
+    }
+    runs.last.frames.add(frames[i]);
+  }
+  return runs;
+}

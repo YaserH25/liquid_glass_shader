@@ -44,6 +44,27 @@ void main() {
     expect(frames.single.gap, const Duration(microseconds: 16667));
   });
 
+  test('frames fall into runs drawn with glass and without', () {
+    final runs = guardRunsFrom(
+      [
+        _frame(1, 0),
+        _frame(2, 16667),
+        _frame(3, 33333),
+        _frame(4, 50000),
+        _frame(5, 66667),
+      ],
+      askedForNext: {1, 2, 3, 4},
+      glassFrames: {1, 2, 5},
+    );
+    expect(runs.map((r) => (r.glass, r.frames.length)), [
+      (true, 2),
+      (false, 2),
+      (true, 1),
+    ]);
+    // Gaps are measured across runs, as in one batch.
+    expect(runs.last.frames.single.gap, const Duration(microseconds: 16667));
+  });
+
   test('frames that are not consecutive have no gap', () {
     final frames = guardFramesFrom(
       [_frame(1, 0), _frame(3, 33333)],

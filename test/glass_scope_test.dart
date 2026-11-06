@@ -65,6 +65,11 @@ List<_Frame> _second(Duration each) {
   return _rasters(List.filled(count, each));
 }
 
+/// One second of 60Hz frames, one in five late: slow, but not severely.
+final _stutter = _rasters([
+  for (var i = 0; i < 60; i++) i % 5 == 4 ? _slow : _fast,
+]);
+
 void main() {
   testWidgets('steps down only after two slow windows with glass shown', (
     tester,
@@ -73,7 +78,7 @@ void main() {
     final scope = _scope(tester);
 
     // One slow window, then a fast one: no change.
-    scope.recordFrames(_second(_slow), glassOnScreen: true);
+    scope.recordFrames(_stutter, glassOnScreen: true);
     scope.recordFrames(_second(_fast), glassOnScreen: true);
     expect(scope.cap, GlassQuality.refraction);
 
@@ -84,16 +89,53 @@ void main() {
 
     // A slow window, a stretch without glass, another slow window: the
     // stretch resets the count.
-    scope.recordFrames(_second(_slow), glassOnScreen: true);
+    scope.recordFrames(_stutter, glassOnScreen: true);
     scope.recordFrames(const <_Frame>[], glassOnScreen: false);
-    scope.recordFrames(_second(_slow), glassOnScreen: true);
+    scope.recordFrames(_stutter, glassOnScreen: true);
     expect(scope.cap, GlassQuality.refraction);
 
     // Two slow windows in a row: one tier down from the tier glass is
     // actually drawn at. Without Impeller that is the blur, so the next
     // step is opaque (not a do-nothing step to blur).
-    scope.recordFrames(_second(_slow), glassOnScreen: true);
+    scope.recordFrames(_stutter, glassOnScreen: true);
     expect(scope.cap, GlassQuality.solid);
+  });
+
+  group('a window with most frames late', () {
+    testWidgets('is enough on its own to step down', (tester) async {
+      await tester.pumpWidget(_app());
+      final scope = _scope(tester);
+      // 60% of a second of frames late.
+      scope.recordFrames(
+        _rasters([for (var i = 0; i < 60; i++) i % 5 < 3 ? _slow : _fast]),
+        glassOnScreen: true,
+      );
+      expect(scope.cap, GlassQuality.solid);
+    });
+
+    testWidgets('waits for a second one with a severe share of 1', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_app(guard: const GlassGuard(severeShare: 1)));
+      final scope = _scope(tester);
+      scope.recordFrames(_second(_slow), glassOnScreen: true);
+      expect(scope.cap, GlassQuality.refraction);
+      scope.recordFrames(_second(_slow), glassOnScreen: true);
+      expect(scope.cap, GlassQuality.solid);
+    });
+
+    testWidgets('never counts below the late share', (tester) async {
+      // An app that set a late share above the default severe share keeps
+      // its two windows.
+      await tester.pumpWidget(_app(guard: const GlassGuard(lateShare: 0.7)));
+      final scope = _scope(tester);
+      final sixtyPercent = _rasters([
+        for (var i = 0; i < 60; i++) i % 5 < 3 ? _slow : _fast,
+      ]);
+      scope.recordFrames(sixtyPercent, glassOnScreen: true);
+      scope.recordFrames(sixtyPercent, glassOnScreen: true);
+      expect(scope.cap, GlassQuality.refraction);
+    });
   });
 
   group('default guard on a 60Hz display', () {
@@ -186,15 +228,16 @@ void main() {
 
   // Windows are a second of frames, not a count of them: a phone that can
   // only draw a few frames a second must step down as fast as any other.
-  testWidgets('a phone drawing five frames a second steps down in seconds', (
+  testWidgets('a phone drawing five frames a second steps down in a second', (
     tester,
   ) async {
     await tester.pumpWidget(_app());
     final scope = _scope(tester);
-    // About 2.3 seconds of a software-rendered phone (the Android emulator
-    // without a GPU took 189ms a frame).
+    // About 1.1 seconds of a software-rendered phone (the Android emulator
+    // without a GPU took 189ms a frame): every frame late, so one window
+    // is enough.
     scope.recordFrames(
-      _rasters(List.filled(12, const Duration(milliseconds: 189))),
+      _rasters(List.filled(6, const Duration(milliseconds: 189))),
       glassOnScreen: true,
     );
     expect(scope.cap, GlassQuality.solid);
@@ -216,6 +259,32 @@ void main() {
       scope.recordFrames(_second(_slow), glassOnScreen: true);
       scope.recordFrames(_second(_slow), glassOnScreen: true);
       expect(reported, [GlassQuality.solid]);
+    });
+  });
+
+  // Watching costs a callback after every frame and the engine's timing
+  // reports; once the guard cannot step down any more it is wasted.
+  group('frame timings are watched only while the guard can step down', () {
+    bool watched(WidgetTester tester) => _scope(tester).watchesFrames;
+
+    testWidgets('not with the guard off, until it is on again', (tester) async {
+      await tester.pumpWidget(_app(guard: const GlassGuard(enabled: false)));
+      expect(watched(tester), isFalse);
+      await tester.pumpWidget(_app());
+      expect(watched(tester), isTrue);
+    });
+
+    testWidgets('not once glass is solid', (tester) async {
+      await tester.pumpWidget(_app());
+      expect(watched(tester), isTrue);
+      _scope(tester).recordFrames(_second(_slow), glassOnScreen: true);
+      expect(_scope(tester).cap, GlassQuality.solid);
+      expect(watched(tester), isFalse);
+    });
+
+    testWidgets('not when it starts solid', (tester) async {
+      await tester.pumpWidget(_app(initialCap: GlassQuality.solid));
+      expect(watched(tester), isFalse);
     });
   });
 
