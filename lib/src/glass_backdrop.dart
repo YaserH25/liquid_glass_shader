@@ -230,10 +230,15 @@ class RenderGlassBackdrop extends RenderProxyBox {
     });
   }
 
+  /// Whether this glass's backdrop layer is in the scene the last frame
+  /// drew. An ancestor that stops painting it (a page covered by another,
+  /// an `Offstage`) leaves the layer detached.
+  bool _drewBackdrop() => layer?.attached ?? false;
+
   @override
   void attach(PipelineOwner owner) {
     super.attach(owner);
-    activeGlassSurfaces++;
+    attachedGlass.add(_drewBackdrop);
     LiquidGlassShader.ensureLoaded();
     LiquidGlassShader.program.addListener(markNeedsPaint);
   }
@@ -241,7 +246,7 @@ class RenderGlassBackdrop extends RenderProxyBox {
   @override
   void detach() {
     LiquidGlassShader.program.removeListener(markNeedsPaint);
-    activeGlassSurfaces--;
+    attachedGlass.remove(_drewBackdrop);
     super.detach();
   }
 

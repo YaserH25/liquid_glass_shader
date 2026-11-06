@@ -20,7 +20,9 @@ import 'liquid_glass_shader_loader.dart';
 /// Impeller, otherwise a blur; opaque under high contrast). While glass is
 /// on screen, the scope watches frame timings and steps the tier down for
 /// the rest of the session when frames keep missing the display's budget
-/// ([guard]), so slower devices stay smooth instead of janky.
+/// ([guard]), so slower devices stay smooth instead of janky. Only frames
+/// in which glass drew a backdrop count: a page covered by another does
+/// not lose its glass for the other page's jank.
 ///
 /// Glass works without a scope: clear style, and [GlassThemeData.light] or
 /// [GlassThemeData.dark] by the app's brightness (a Material or Cupertino
@@ -102,29 +104,87 @@ class GlassScopeState extends State<GlassScope> {
   int _slowWindows = 0;
 
   /// Frames that had already asked for the next frame when they finished,
-  /// and the last frame timed, so gaps can be judged across batches.
+  /// frames drawn with glass on screen, and the last frame timed, so gaps
+  /// can be judged across batches.
   final Set<int> _askedForNext = {};
+  final Set<int> _glassFrames = {};
   FrameTiming? _lastTimed;
+
+  /// The last frame drawn before the tier last stepped down. The engine
+  /// reports timings in batches up to a second late, so the first batch
+  /// after a step down still holds frames drawn at the tier before; they
+  /// say nothing about the new one.
+  int _steppedDownAfter = -1;
+
+  /// Whether frame timings are being watched: only while the guard may
+  /// still step down.
+  bool _watching = false;
+  bool _noteScheduled = false;
 
   /// The current ceiling on glass quality.
   GlassQuality get cap => _cap;
 
+  /// Whether the guard is watching frame timings: only while it is on and
+  /// glass can still step down.
+  @visibleForTesting
+  bool get watchesFrames => _watching;
+
   @override
   void initState() {
     super.initState();
-    SchedulerBinding.instance.addTimingsCallback(_onTimings);
+    _watchWhileNeeded();
+  }
+
+  @override
+  void didUpdateWidget(GlassScope oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.guard != widget.guard) _watchWhileNeeded();
+  }
+
+  @override
+  void dispose() {
+    if (_watching) {
+      SchedulerBinding.instance.removeTimingsCallback(_onTimings);
+    }
+    super.dispose();
+  }
+
+  /// Watches frame timings while the guard is on and glass can still step
+  /// down; a disabled guard, or glass that is already solid, costs nothing
+  /// per frame.
+  void _watchWhileNeeded() {
+    final needed = widget.guard.enabled && _cap != GlassQuality.solid;
+    if (needed == _watching) return;
+    _watching = needed;
+    if (needed) {
+      SchedulerBinding.instance.addTimingsCallback(_onTimings);
+      _scheduleNote();
+    } else {
+      SchedulerBinding.instance.removeTimingsCallback(_onTimings);
+      _resetWindows();
+      _askedForNext.clear();
+      _glassFrames.clear();
+      _lastTimed = null;
+    }
+  }
+
+  void _scheduleNote() {
+    if (_noteScheduled) return;
+    _noteScheduled = true;
     SchedulerBinding.instance.addPostFrameCallback(_noteFrame);
   }
 
   /// After every frame, notes whether the next one is already wanted (a
-  /// scroll or an animation running). Post-frame callbacks do not cause
-  /// frames, so an idle app costs nothing.
+  /// scroll or an animation running), and whether glass drew a backdrop in
+  /// it. Post-frame callbacks do not cause frames, so an idle app costs
+  /// nothing.
   void _noteFrame(Duration _) {
-    if (!mounted) return;
-    if (SchedulerBinding.instance.hasScheduledFrame) {
-      _askedForNext.add(PlatformDispatcher.instance.frameData.frameNumber);
-    }
-    SchedulerBinding.instance.addPostFrameCallback(_noteFrame);
+    _noteScheduled = false;
+    if (!mounted || !_watching) return;
+    final frame = PlatformDispatcher.instance.frameData.frameNumber;
+    if (SchedulerBinding.instance.hasScheduledFrame) _askedForNext.add(frame);
+    if (glassOnScreen) _glassFrames.add(frame);
+    _scheduleNote();
   }
 
   /// The display's frame rate right now (it can change with display modes).
@@ -133,26 +193,38 @@ class GlassScopeState extends State<GlassScope> {
     return rate != null && rate > 0 ? rate : 60;
   }
 
-  @override
-  void dispose() {
-    SchedulerBinding.instance.removeTimingsCallback(_onTimings);
-    super.dispose();
-  }
-
   void _onTimings(List<FrameTiming> timings) {
     if (timings.isEmpty) return;
-    final frames = guardFramesFrom(
-      timings,
+    final runs = guardRunsFrom(
+      [
+        for (final timing in timings)
+          if (timing.frameNumber > _steppedDownAfter) timing,
+      ],
       previous: _lastTimed,
       askedForNext: _askedForNext,
+      glassFrames: _glassFrames,
     );
+    final last = timings.last.frameNumber;
     _lastTimed = timings.last;
-    _askedForNext.removeWhere((n) => n < timings.last.frameNumber);
-    recordFrames(frames, glassOnScreen: activeGlassSurfaces > 0);
+    _askedForNext.removeWhere((n) => n < last);
+    _glassFrames.removeWhere((n) => n <= last);
+    final cap = _cap;
+    for (final run in runs) {
+      recordFrames(run.frames, glassOnScreen: run.glass);
+      // Every frame of this batch was drawn at the tier before.
+      if (_cap != cap) break;
+    }
+  }
+
+  void _resetWindows() {
+    _window.clear();
+    _windowTime = 0;
+    _slowWindows = 0;
   }
 
   /// Judges frames in windows of [GlassGuard.window] and steps the tier
-  /// down after two slow windows in a row.
+  /// down after two slow windows in a row, or after one severely slow
+  /// window ([GlassGuard.severeShare]).
   ///
   /// A window is a stretch of drawing time, not a count of frames: each
   /// frame counts its gap, or its raster time when it has no gap, and at
@@ -175,37 +247,45 @@ class GlassScopeState extends State<GlassScope> {
   }) {
     final guard = widget.guard;
     if (!guard.enabled || !glassOnScreen || _current == GlassQuality.solid) {
-      _window.clear();
-      _windowTime = 0;
-      _slowWindows = 0;
+      _resetWindows();
       return;
     }
     final budget = 1e6 / _refreshRate;
     for (final frame in frames) {
-      if (_current == GlassQuality.solid) return;
       _window.add(frame);
       final length = (frame.gap ?? frame.raster).inMicroseconds;
       _windowTime += math.max(budget, length.toDouble());
-      if (_windowTime >= guard.window.inMicroseconds) _closeWindow();
+      // The rest of these frames were drawn at the tier before.
+      if (_windowTime >= guard.window.inMicroseconds && _closeWindow()) return;
     }
   }
 
   /// The tier glass actually draws at, which the guard steps down from.
   GlassQuality get _current => GlassScope._lower(GlassScope._best, _cap);
 
-  void _closeWindow() {
-    final slow = _late(_window) / _window.length > widget.guard.lateShare;
+  /// Judges the window just filled, and steps down after two slow ones in a
+  /// row, or one severely slow one; true when it stepped down.
+  bool _closeWindow() {
+    final guard = widget.guard;
+    final share = _late(_window) / _window.length;
     _window.clear();
     _windowTime = 0;
-    _slowWindows = slow ? _slowWindows + 1 : 0;
-    if (_slowWindows < 2) return;
+    if (share > math.max(guard.severeShare, guard.lateShare)) {
+      _slowWindows = 2;
+    } else {
+      _slowWindows = share > guard.lateShare ? _slowWindows + 1 : 0;
+    }
+    if (_slowWindows < 2) return false;
 
     _slowWindows = 0;
+    _steppedDownAfter = PlatformDispatcher.instance.frameData.frameNumber;
     final next = GlassQuality.values[_current.index + 1];
     log('Glass frames too slow; stepping down to ${next.name}', name: 'glass');
-    if (!mounted) return;
+    if (!mounted) return true;
     setState(() => _cap = next);
+    _watchWhileNeeded();
     widget.onCapChanged?.call(next);
+    return true;
   }
 
   int _late(List<GuardFrame> frames) {

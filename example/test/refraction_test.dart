@@ -156,6 +156,29 @@ void main() {
     skip: !_impeller,
   );
 
+  testWidgets('the guard judges each tier by its own frames', (tester) async {
+    await _loadShader(tester);
+    final reported = <GlassQuality>[];
+    await tester.pumpWidget(
+      GlassScope(onCapChanged: reported.add, child: const SizedBox()),
+    );
+    final scope = tester.state<GlassScopeState>(find.byType(GlassScope));
+    // Two seconds of frames, nearly all late, in one batch: the first
+    // steps refraction down to the blur. The second was drawn before that
+    // took effect, so it says nothing about the blur.
+    final late = [
+      for (var i = 0; i < 68; i++)
+        (raster: const Duration(milliseconds: 30), gap: null),
+    ];
+    scope.recordFrames(late, glassOnScreen: true);
+    expect(reported, [GlassQuality.blur]);
+    expect(scope.cap, GlassQuality.blur);
+
+    // Frames the blur drew are judged on their own.
+    scope.recordFrames(late.sublist(34), glassOnScreen: true);
+    expect(reported, [GlassQuality.blur, GlassQuality.solid]);
+  }, skip: !_impeller);
+
   testWidgets("the shader's frost spreads an edge as the engine's blur does", (
     tester,
   ) async {
