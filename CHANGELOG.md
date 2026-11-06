@@ -1,3 +1,12 @@
+## Unreleased
+
+* Much less GPU work, most of all on weak phones: the clear look's light frost is taken in the refraction shader, from sixteen reads spread like a Gaussian, instead of the engine's blur composed in front of it. The engine cannot tell where a shader filter reads, so that blur ran over the whole screen at full resolution every frame. Drawn by Impeller's software renderer, the default clear tab bar costs a quarter of what it did, and a held lens under a third, for a look within a pixel of the blur at an edge. Heavier frost, like the frosted look's, is still the engine's blur, which downsamples.
+* The guard steps down after a single second in which most frames were late (`GlassGuard.severeShare`, 0.5 by default), instead of always waiting for two.
+* The guard counts only frames in which glass drew a backdrop: a page covered by another, or glass under an `Offstage`, no longer loses its glass for jank elsewhere. Each tier is judged only by the frames drawn at it: the engine reports frame timings up to a second late, and frames from the tier before no longer count against the next. The scope stops watching frames once glass is solid or the guard is off.
+* The tab bar's moving lens repaints in layers of its own: the glass, its tint, rim and backdrop, no longer repaints every frame the lens slides or follows a finger. At rest the tabs take no clip layer, and the lens fades by its colours (`GlassLens.opacity`) rather than through opacity layers, so lifting and dropping it costs no offscreen pass.
+* Fixed: glass with `rim: false` drew a dark line round its lower half, and the lower rim did not fade with `strength`.
+* CI runs the shader on Impeller (`flutter test --enable-impeller` in the example), which checks the frost against the engine's blur.
+
 ## 0.3.0
 
 Breaking: see "Migrating from 0.2" in the README.

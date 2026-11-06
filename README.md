@@ -269,6 +269,18 @@ Consider letting the saved tier expire (after a week, say), so a phone that had 
 
 The tab bar builds its glass once per change of state, never per frame: while the lens slides, lifts or stretches, only the lens rebuilds and repaints, in layers of its own, and the swell and the shrink into the pill run as transitions. At rest the tabs take no clip, and the lens fades by its colours rather than through opacity layers, so lifting and dropping it costs no offscreen pass. With 0.3.0, on an iPhone 17 Pro Max at 120 Hz and the example's frame-time test (`example/integration_test/tab_bar_perf_test.dart`, in profile mode), a page scrolling under the bar, a finger scrubbing it and the lens sliding between tabs averaged 0.35 to 0.49 ms of UI build time and 1.2 to 1.5 ms of raster time a frame, and no frame missed its budget.
 
+A fast GPU hides what weaker ones pay for. Drawn by Impeller's software renderer (SwiftShader), which pays for every pixel the way a weak GPU does, a 1080 by 2340 frame of a colourful page took 105 ms; the stacked tab bar over it added:
+
+| The bar | 0.3.0 | Now |
+| --- | --- | --- |
+| Refraction, clear | 292 ms | 66 ms |
+| Refraction, the lens held | 361 ms | 102 ms |
+| Refraction, frosted | 99 ms | 100 ms |
+| Blur, clear | 80 ms | 78 ms |
+| Solid | 13 ms | 12 ms |
+
+The clear look's frost had cost more than everything else in the glass together. On Impeller, clear refraction now costs about what the blur tier does, so a phone that cannot keep up with one usually cannot with the other; the guard moves on from a tier that did not help within a second when most frames stay late.
+
 Avoid composing your own filters in front of the glass: a blur in front of a shader filter runs over the whole screen at full resolution.
 
 ## Limitations
