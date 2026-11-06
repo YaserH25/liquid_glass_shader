@@ -67,14 +67,12 @@ class LiftedLens extends StatelessWidget {
               if (refracts)
                 // Clear glass whose rim and shadow fade with the lift; the
                 // resting lens behind the tabs supplies the tint.
-                Opacity(
-                  opacity: lift.clamp(0.0, 1.0),
-                  child: GlassLens(
-                    lift: 1,
-                    tint: optics.tint,
-                    shadows: optics.shadows,
-                    liftedShadows: optics.liftedShadows,
-                  ),
+                GlassLens(
+                  lift: 1,
+                  opacity: lift,
+                  tint: optics.tint,
+                  shadows: optics.shadows,
+                  liftedShadows: optics.liftedShadows,
                 )
               else ...[
                 GlassLens(
