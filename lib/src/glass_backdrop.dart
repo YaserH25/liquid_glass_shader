@@ -13,10 +13,10 @@ import 'liquid_glass_shader_loader.dart';
 /// refracted toward the rim, split into colours there, lit along the top
 /// edge, and lightly frosted. Wrap it in a clip of the same shape.
 ///
-/// The shader only samples inside the glass, and saturation happens in it
-/// rather than in a separate colour pass, so its cost stays with the glass's
-/// own area on every GPU. The frost is the engine's blur, which downsamples
-/// wide radii.
+/// The shader only samples inside the glass, and saturation and a light
+/// frost happen in it rather than in separate passes, so its cost stays with
+/// the glass's own area on every GPU. Heavier frost is the engine's blur,
+/// which downsamples wide radii.
 ///
 /// Without the shader, or with [refract] off (a lower quality tier), it
 /// draws [fallback] instead (a frosted blur).
@@ -180,6 +180,17 @@ class RenderGlassBackdrop extends RenderProxyBox {
     markNeedsPaint();
   }
 
+  /// The most frost, as a blur sigma in physical pixels, that the shader
+  /// takes itself, from a few taps around each pixel of the glass.
+  ///
+  /// The engine cannot tell where a shader filter samples, so a blur
+  /// composed in front of it runs over the whole screen at full resolution:
+  /// for the clear look's light frost that cost several times the rest of
+  /// the glass. Heavier frost is the engine's blur, which downsamples and
+  /// stays cheap.
+  @visibleForTesting
+  static const double maxShaderFrost = 6;
+
   /// Two shaders used in turn. A filter made from the same shader compares
   /// equal, so the layer would keep the last frame's uniforms; alternating
   /// also never rewrites a shader the previous frame may still be drawing.
@@ -284,9 +295,12 @@ class RenderGlassBackdrop extends RenderProxyBox {
     put(_magnify);
     put(_specular);
     put(_saturation);
+    final frost = _frost * scale * ratio;
+    final frostInShader = frost <= maxShaderFrost;
+    put(frostInShader ? frost : 0);
 
     final refraction = ui.ImageFilter.shader(shader);
-    if (_frost <= 0) return refraction;
+    if (_frost <= 0 || frostInShader) return refraction;
     return ui.ImageFilter.compose(
       outer: refraction,
       inner: ui.ImageFilter.blur(sigmaX: _frost, sigmaY: _frost),

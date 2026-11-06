@@ -11,7 +11,9 @@ It also ships `LiquidTabBar`, a tab bar that behaves like the iOS 26 one: press 
 
 ## How it works
 
-`GlassBackdrop` pushes a backdrop filter layer whose filter is `shaders/liquid_glass.frag`. For each pixel inside the glass's rounded rectangle, the shader measures the distance to the edge, follows a dome profile across the rim band, and samples the backdrop displaced inward along the edge normal. Near the rim it samples red and blue at slightly different offsets (dispersion), it can magnify the whole interior, and it raises saturation so what shows through looks vivid. Pixels outside the glass return at once, so the cost stays with the glass's own area. Pixels in the flat middle, farther than the rim band from the edge, take one backdrop read and the saturation and skip the rest. Near the rim the edge direction comes from the rounded rectangle's gradient in closed form, not from extra distance evaluations.
+`GlassBackdrop` pushes a backdrop filter layer whose filter is `shaders/liquid_glass.frag`. For each pixel inside the glass's rounded rectangle, the shader measures the distance to the edge, follows a dome profile across the rim band, and samples the backdrop displaced inward along the edge normal. Near the rim it samples red and blue at slightly different offsets (dispersion), it can magnify the whole interior, and it raises saturation so what shows through looks vivid. Pixels outside the glass return at once, so the cost stays with the glass's own area. Pixels in the flat middle, farther than the rim band from the edge, take the frost and the saturation and skip the rest. Near the rim the edge direction comes from the rounded rectangle's gradient in closed form, not from extra distance evaluations.
+
+A light frost, like the clear look's, is taken in the shader too: sixteen backdrop reads spread like a Gaussian, so no two line up in any direction. It replaces the engine's blur in front of the shader, which, because the engine cannot tell where a shader filter reads, ran over the whole screen at full resolution. A heavier frost, like the frosted look's, is still the engine's blur, which downsamples and stays cheap.
 
 The shader places the glass by where its box actually is on screen, so scaling, transforms and RTL all line up. When an ancestor moves the glass without repainting it (a page transition sliding a bar), the glass notices after the frame and repaints.
 
@@ -267,12 +269,13 @@ Consider letting the saved tier expire (after a week, say), so a phone that had 
 
 The tab bar builds its glass once per change of state, never per frame: while the lens slides, lifts or stretches, only the lens rebuilds, and the swell and the shrink into the pill run as transitions. On an iPhone 17 Pro Max at 120 Hz, with the example's frame-time test (`example/integration_test/tab_bar_perf_test.dart`, in profile mode), a page scrolling under the bar, a finger scrubbing it and the lens sliding between tabs averaged 0.35 to 0.49 ms of UI build time and 1.2 to 1.5 ms of raster time a frame, and no frame missed its budget.
 
-The frost is the engine's blur followed by the shader: two passes. Avoid putting more filters in front of the glass; a fine full-resolution blur plus a colour-matrix pass made a bar lag on a current iPhone.
+Avoid composing your own filters in front of the glass: a blur in front of a shader filter runs over the whole screen at full resolution.
 
 ## Limitations
 
 - Refraction uses one corner radius per surface: the smallest of its corners. The clip still rounds the rest, so a sheet with square bottom corners stays glass all the way down.
 - Glass is for chrome over content. Refraction behind body text makes it harder to read.
+- The light frost taken in the shader comes within a pixel of the engine's Gaussian blur at an edge, but is sixteen reads, not a true Gaussian. Above 6 physical pixels of blur it would show its taps, so heavier frost is the engine's blur.
 - Inside the lifted lens, iOS tints everything with the selection colour; `LiquidTabBar` only draws the tab under the lens as current.
 - Tabs share the bar's length equally; iOS sizes each tab to its label.
 - Folds reach the bar only where Flutter reports them: on Android today. On the Android emulator's Pixel 10 Pro Fold (API 36 image), apps received no fold even half open, so the fold above is shown flat; the stepping aside is covered by tests.

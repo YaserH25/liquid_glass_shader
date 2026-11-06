@@ -2,9 +2,9 @@
 
 // Liquid glass, applied to what lies behind a rounded shape (a pill).
 //
-// Deep inside, the backdrop shows through clearly (saturated, optionally
-// magnified; any frost is a blur applied before this shader). Toward the rim the glass curves away,
-// so the view bends inward: content near the edge is drawn out, each colour
+// Deep inside, the backdrop shows through clearly (saturated, lightly
+// frosted, optionally magnified). Toward the rim the glass curves away, so
+// the view bends inward: content near the edge is drawn out, each colour
 // channel a little differently (dispersion), and light catches the top of
 // the rim.
 //
@@ -12,6 +12,12 @@
 // so the cost stays with the glass's own area on every GPU. Inside, pixels
 // farther than the rim band from the edge are flat glass: no bend, colour
 // split or highlight, so they skip all of that work.
+//
+// A light frost (uFrost) is taken here, from a few taps around each pixel.
+// The engine cannot tell where a shader filter samples, so a blur composed
+// in front of it runs over the whole screen at full resolution: for a light
+// frost that cost several times the rest of the glass. Heavier frost is the
+// engine's blur, which downsamples (uFrost is then 0).
 //
 // All lengths are in physical pixels of the backdrop texture.
 
@@ -26,6 +32,7 @@ uniform float uDispersion; // colour split, as a fraction of the bend
 uniform float uMagnify;    // magnification of the whole interior (1 = none)
 uniform float uSpecular;   // strength of the rim highlight
 uniform float uSaturation; // colour saturation (1 = unchanged)
+uniform float uFrost;      // blur sigma of the frost taken here (0 = none)
 uniform sampler2D uTexture;
 
 out vec4 fragColor;
@@ -54,6 +61,36 @@ vec3 backdrop(vec2 px) {
   return texture(uTexture, uv).rgb;
 }
 
+// The backdrop at px under a Gaussian frost of uFrost: sixteen taps of
+// equal weight. Their distances from px are the Gaussian's own quantiles
+// and each turns by the golden angle from the one before, so no two taps
+// line up in any direction; the set has exactly the Gaussian's spread
+// (unit covariance, before scaling by uFrost). The backdrop is sampled at
+// the nearest texel, so taps that lined up would show an edge behind the
+// glass as steps.
+vec3 frosted(vec2 px) {
+  if (uFrost <= 0.0) {
+    return backdrop(px);
+  }
+  vec3 sum = backdrop(px + vec2(0.0645, 0.3323) * uFrost) +
+      backdrop(px + vec2(-0.4516, -0.1226) * uFrost) +
+      backdrop(px + vec2(0.4507, -0.1298) * uFrost) +
+      backdrop(px + vec2(-0.3146, 0.7582) * uFrost) +
+      backdrop(px + vec2(-0.3066, -0.7990) * uFrost) +
+      backdrop(px + vec2(0.7135, 0.6439) * uFrost) +
+      backdrop(px + vec2(-0.9895, 0.2453) * uFrost) +
+      backdrop(px + vec2(0.5314, -0.8933) * uFrost) +
+      backdrop(px + vec2(0.1351, 1.4381) * uFrost) +
+      backdrop(px + vec2(-1.0506, -0.9558) * uFrost) +
+      backdrop(px + vec2(1.3278, 0.1174) * uFrost) +
+      backdrop(px + vec2(-1.0863, 1.2356) * uFrost) +
+      backdrop(px + vec2(-0.0300, -1.8435) * uFrost) +
+      backdrop(px + vec2(1.1619, 1.8034) * uFrost) +
+      backdrop(px + vec2(-2.1024, -0.4035) * uFrost) +
+      backdrop(px + vec2(1.9466, -1.4269) * uFrost);
+  return sum * (1.0 / 16.0);
+}
+
 vec3 withSaturation(vec3 color) {
   float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
   return mix(vec3(luma), color, uSaturation);
@@ -79,7 +116,7 @@ void main() {
   float rim = clamp(1.0 + d / max(uBand, 1.0), 0.0, 1.0);
   if (rim <= 0.0) {
     // Flat glass: bend, colour split and highlight are all zero here.
-    fragColor = vec4(clamp(withSaturation(backdrop(base)), 0.0, 1.0), 1.0);
+    fragColor = vec4(clamp(withSaturation(frosted(base)), 0.0, 1.0), 1.0);
     return;
   }
 
@@ -89,14 +126,14 @@ void main() {
   float slope = 1.0 - sqrt(1.0 - rim * rim);
   vec2 bend = -normal * uBend * slope;
 
-  vec3 color = backdrop(base + bend);
+  vec3 color = frosted(base + bend);
 
   // Colours split only close to the rim; the middle stays true and pays
   // for no extra samples.
   float split = uDispersion * smoothstep(0.6, 1.0, rim);
   if (split > 0.001) {
-    color.r = backdrop(base + bend * (1.0 + split)).r;
-    color.b = backdrop(base + bend * (1.0 - split)).b;
+    color.r = frosted(base + bend * (1.0 + split)).r;
+    color.b = frosted(base + bend * (1.0 - split)).b;
   }
 
   color = withSaturation(color);
