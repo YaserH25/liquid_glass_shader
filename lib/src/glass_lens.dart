@@ -13,6 +13,7 @@ class GlassLens extends StatelessWidget {
   const GlassLens({
     super.key,
     this.lift = 0,
+    this.opacity = 1,
     this.tint,
     this.shadows,
     this.liftedShadows,
@@ -20,6 +21,11 @@ class GlassLens extends StatelessWidget {
 
   /// 0 at rest, 1 lifted under a finger.
   final double lift;
+
+  /// How much of the lens shows, 0 to 1. Its tint, rim and shadow fade
+  /// together by their colours, so a fading lens costs no offscreen layer,
+  /// as an `Opacity` around it would.
+  final double opacity;
 
   /// The tint at rest; none takes the theme's `GlassThemeData.lensTint`.
   final Color? tint;
@@ -34,9 +40,18 @@ class GlassLens extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shown = opacity.clamp(0.0, 1.0);
+    if (shown == 0) return const SizedBox.expand();
     final theme = GlassScope.themeOf(context);
     final t = lift.clamp(0.0, 1.0);
     final radius = BorderRadius.circular(999);
+    Color fade(Color color) =>
+        shown == 1 ? color : color.withValues(alpha: color.a * shown);
+    final shadow = BoxShadow.lerpList(
+      shadows ?? theme.lensShadows,
+      liftedShadows ?? theme.lensLiftedShadows,
+      t,
+    );
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -47,25 +62,30 @@ class GlassLens extends StatelessWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: radius,
-              boxShadow: BoxShadow.lerpList(
-                shadows ?? theme.lensShadows,
-                liftedShadows ?? theme.lensLiftedShadows,
-                t,
-              ),
+              boxShadow: [
+                for (final s in shadow ?? const <BoxShadow>[])
+                  s.copyWith(color: fade(s.color)),
+              ],
             ),
           ),
         ),
         DecoratedBox(
           decoration: BoxDecoration(
-            color: Color.lerp(
-              tint ?? theme.lensTint,
-              theme.rim.withValues(alpha: 0.12),
-              t,
+            color: fade(
+              Color.lerp(
+                tint ?? theme.lensTint,
+                theme.rim.withValues(alpha: 0.12),
+                t,
+              )!,
             ),
             borderRadius: radius,
           ),
           child: CustomPaint(
-            painter: GlassRimPainter(borderRadius: radius, rim: theme.rim),
+            painter: GlassRimPainter(
+              borderRadius: radius,
+              rim: theme.rim,
+              opacity: shown,
+            ),
           ),
         ),
       ],

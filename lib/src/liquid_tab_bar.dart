@@ -548,17 +548,23 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                         end: RelativeRect.fromSize(shrunk, box.size),
                       ),
                     ),
-                child: _glass(
-                  tabs,
-                  lensTabs,
-                  pill,
-                  row: oriented(
-                    length - 2 * metrics.inset,
-                    metrics.thickness - 2 * metrics.inset,
+                // The glass in a layer of its own. Anything that animates
+                // under this LayoutBuilder, as the lens does, has it lay out
+                // and repaint again; the glass repaints only when it swells
+                // or shrinks, which moves it.
+                child: RepaintBoundary(
+                  child: _glass(
+                    tabs,
+                    lensTabs,
+                    pill,
+                    row: oriented(
+                      length - 2 * metrics.inset,
+                      metrics.thickness - 2 * metrics.inset,
+                    ),
+                    refracts: refracts,
+                    pillAlignment: pillAlignment,
+                    pillSize: pillSize,
                   ),
-                  refracts: refracts,
-                  pillAlignment: pillAlignment,
-                  pillSize: pillSize,
                 ),
               ),
             ],
@@ -672,16 +678,20 @@ class _LiquidTabBarState extends State<LiquidTabBar>
                           onPointerMove: _onMove,
                           onPointerUp: _onUp,
                           onPointerCancel: _onCancel,
-                          child: AnimatedBuilder(
-                            animation: _lensMoves,
-                            builder: (context, _) => RestingLensRow(
-                              key: _rowKey,
-                              lens: _lensIn(row),
-                              lift: _lens.lift.value,
-                              refracts: refracts,
-                              optics: widget.lens,
-                              focusRing: minimized ? null : _focusRing,
-                              tabs: tabs,
+                          // The lens repaints alone as it moves, never the
+                          // glass around it.
+                          child: RepaintBoundary(
+                            child: AnimatedBuilder(
+                              animation: _lensMoves,
+                              builder: (context, _) => RestingLensRow(
+                                key: _rowKey,
+                                lens: _lensIn(row),
+                                lift: _lens.lift.value,
+                                refracts: refracts,
+                                optics: widget.lens,
+                                focusRing: minimized ? null : _focusRing,
+                                tabs: tabs,
+                              ),
                             ),
                           ),
                         ),
@@ -721,26 +731,31 @@ class _LiquidTabBarState extends State<LiquidTabBar>
               padding: EdgeInsets.all(inset),
               child: IgnorePointer(
                 child: ExcludeSemantics(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      // The glass less its inset: the row of tabs.
-                      final row = constraints.biggest;
-                      return AnimatedBuilder(
-                        animation: _lensMoves,
-                        builder: (context, _) {
-                          final lift = _lens.lift.value;
-                          if (lift <= 0) return const SizedBox.shrink();
-                          return LiftedLens(
-                            lens: _lensIn(row),
-                            row: row,
-                            lift: lift,
-                            refracts: refracts,
-                            optics: widget.lens,
-                            tabs: lensTabs,
-                          );
-                        },
-                      );
-                    },
+                  // Its own layer: every move of the lens lays this out
+                  // again, even while it rests, and that must not repaint
+                  // the glass.
+                  child: RepaintBoundary(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // The glass less its inset: the row of tabs.
+                        final row = constraints.biggest;
+                        return AnimatedBuilder(
+                          animation: _lensMoves,
+                          builder: (context, _) {
+                            final lift = _lens.lift.value;
+                            if (lift <= 0) return const SizedBox.shrink();
+                            return LiftedLens(
+                              lens: _lensIn(row),
+                              row: row,
+                              lift: lift,
+                              refracts: refracts,
+                              optics: widget.lens,
+                              tabs: lensTabs,
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),

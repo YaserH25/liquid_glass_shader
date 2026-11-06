@@ -45,23 +45,25 @@ class RestingLensRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lifted = lift > 0;
+    final cutOut = lifted && !refracts;
     return Stack(
       children: [
         if (!lifted || refracts)
           Positioned.fromRect(
             rect: lens,
-            child: Opacity(
+            child: GlassLens(
+              key: const Key('liquid_tab_bar_lens'),
               opacity: 1 - lift.clamp(0.0, 1.0),
-              child: GlassLens(
-                key: const Key('liquid_tab_bar_lens'),
-                tint: optics.tint,
-                shadows: optics.shadows,
-                liftedShadows: optics.liftedShadows,
-              ),
+              tint: optics.tint,
+              shadows: optics.shadows,
+              liftedShadows: optics.liftedShadows,
             ),
           ),
+        // Clipped only while the cut-out is needed; at rest the tabs take
+        // no clip layer.
         ClipPath(
-          clipper: lifted && !refracts ? _OutsideLens(lens) : null,
+          clipper: cutOut ? _OutsideLens(lens) : null,
+          clipBehavior: cutOut ? Clip.antiAlias : Clip.none,
           child: tabs,
         ),
         if (focusRing case final color?)

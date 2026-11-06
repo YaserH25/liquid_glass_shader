@@ -267,7 +267,7 @@ GlassScope(
 
 Consider letting the saved tier expire (after a week, say), so a phone that had one slow day, or got an update, gets its glass back.
 
-The tab bar builds its glass once per change of state, never per frame: while the lens slides, lifts or stretches, only the lens rebuilds, and the swell and the shrink into the pill run as transitions. On an iPhone 17 Pro Max at 120 Hz, with the example's frame-time test (`example/integration_test/tab_bar_perf_test.dart`, in profile mode), a page scrolling under the bar, a finger scrubbing it and the lens sliding between tabs averaged 0.35 to 0.49 ms of UI build time and 1.2 to 1.5 ms of raster time a frame, and no frame missed its budget.
+The tab bar builds its glass once per change of state, never per frame: while the lens slides, lifts or stretches, only the lens rebuilds and repaints, in layers of its own, and the swell and the shrink into the pill run as transitions. At rest the tabs take no clip, and the lens fades by its colours rather than through opacity layers, so lifting and dropping it costs no offscreen pass. With 0.3.0, on an iPhone 17 Pro Max at 120 Hz and the example's frame-time test (`example/integration_test/tab_bar_perf_test.dart`, in profile mode), a page scrolling under the bar, a finger scrubbing it and the lens sliding between tabs averaged 0.35 to 0.49 ms of UI build time and 1.2 to 1.5 ms of raster time a frame, and no frame missed its budget.
 
 Avoid composing your own filters in front of the glass: a blur in front of a shader filter runs over the whole screen at full resolution.
 

@@ -2,7 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui' show DisplayFeature, DisplayFeatureState, DisplayFeatureType;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/rendering.dart'
+    show ClipPathLayer, OpacityLayer, RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_shader/liquid_glass_shader.dart';
@@ -1079,6 +1080,94 @@ void main() {
       await tester.pumpWidget(bar(minimized: true));
       await expectGlassKept(tester);
       await tester.pumpAndSettle();
+    });
+  });
+
+  group('repaints', () {
+    // Not rebuilt is not enough: a lens that moves in the glass's layer
+    // repaints the glass with it, its tint, rim and backdrop, every frame.
+    // The glass repaints whenever the repaint boundary around it does.
+    RenderObject glassLayer(WidgetTester tester) {
+      RenderObject? node = tester
+          .renderObject(
+            find.descendant(
+              of: find.byType(GlassSurface),
+              matching: find.byType(GlassBackdrop),
+            ),
+          )
+          .parent;
+      while (node != null && !node.isRepaintBoundary) {
+        node = node.parent;
+      }
+      return node!;
+    }
+
+    /// Runs the next frame up to layout, where whatever must repaint has
+    /// been marked, and checks the glass is not; then finishes the frame.
+    Future<void> expectGlassNotRepainted(WidgetTester tester, int frame) async {
+      await tester.pump(const Duration(milliseconds: 16), EnginePhase.layout);
+      expect(
+        glassLayer(tester).debugNeedsPaint,
+        isFalse,
+        reason: 'frame $frame',
+      );
+      await tester.pump(Duration.zero);
+    }
+
+    testWidgets('a sliding lens leaves the glass unpainted', (tester) async {
+      await _pump(tester);
+      tester.state<_HarnessState>(find.byType(_Harness)).select(3);
+      await tester.pump();
+      for (var i = 0; i < 8; i++) {
+        await expectGlassNotRepainted(tester, i);
+      }
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a lifted lens following a finger leaves the glass unpainted', (
+      tester,
+    ) async {
+      await _pump(tester);
+      final gesture = await tester.startGesture(
+        tester.getCenter(_tab(1)) - const Offset(30, 0),
+      );
+      // Lifted, and the bar done swelling.
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 8; i++) {
+        // Within the same tab, which changes nothing but the lens.
+        await gesture.moveBy(const Offset(6, 0));
+        await expectGlassNotRepainted(tester, i);
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('the glass repaints while it swells, so refraction follows', (
+      tester,
+    ) async {
+      // The shader places the glass by where it is on screen; glass that
+      // moved without repainting would refract a frame behind.
+      await _pump(tester);
+      final gesture = await tester.startGesture(tester.getCenter(_tab(1)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16), EnginePhase.layout);
+      expect(glassLayer(tester).debugNeedsPaint, isTrue);
+      await tester.pump(Duration.zero);
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('at rest the bar adds no clip or translucent layers', (
+      tester,
+    ) async {
+      // Each costs the GPU a clip or an offscreen pass, every frame the page
+      // under the bar moves. An opacity layer at full alpha costs nothing.
+      await _pump(tester);
+      expect(tester.layers.whereType<ClipPathLayer>(), isEmpty);
+      expect(
+        tester.layers.whereType<OpacityLayer>().where((l) => l.alpha! < 255),
+        isEmpty,
+      );
     });
   });
 
