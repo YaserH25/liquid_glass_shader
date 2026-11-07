@@ -1,0 +1,19 @@
+name: Publish to pub.dev
+
+# Publishes the package when a tag like v0.3.1 is pushed; pub.dev checks
+# that the tag matches the version in pubspec.yaml. Publishing is enabled
+# on pub.dev (package Admin, Automated publishing) for this repository
+# with the tag pattern v{{version}}.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  publish:
+    permissions:
+      id-token: write # pub.dev authenticates the upload with GitHub's OIDC token
+    # Sets up the Flutter SDK, then a dry run, then the upload.
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      environment: pub.dev
