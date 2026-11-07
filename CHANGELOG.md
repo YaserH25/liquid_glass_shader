@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.1
 
 * Much less GPU work, most of all on weak phones: the clear look's light frost is taken in the refraction shader, from sixteen reads spread like a Gaussian, instead of the engine's blur composed in front of it. The engine cannot tell where a shader filter reads, so that blur ran over the whole screen at full resolution every frame. Drawn by Impeller's software renderer, the default clear tab bar costs a quarter of what it did, and a held lens under a third, for a look within a pixel of the blur at an edge. Heavier frost, like the frosted look's, is still the engine's blur, which downsamples.
 * The guard steps down after a single second in which most frames were late (`GlassGuard.severeShare`, 0.5 by default), instead of always waiting for two.

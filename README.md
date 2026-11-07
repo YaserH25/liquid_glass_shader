@@ -271,7 +271,7 @@ The tab bar builds its glass once per change of state, never per frame: while th
 
 A fast GPU hides what weaker ones pay for. Drawn by Impeller's software renderer (SwiftShader), which pays for every pixel the way a weak GPU does, a 1080 by 2340 frame of a colourful page took 105 ms; the stacked tab bar over it added:
 
-| The bar | 0.3.0 | Now |
+| The bar | 0.3.0 | 0.3.1 |
 | --- | --- | --- |
 | Refraction, clear | 292 ms | 66 ms |
 | Refraction, the lens held | 361 ms | 102 ms |
