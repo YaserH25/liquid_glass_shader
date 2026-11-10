@@ -1,3 +1,14 @@
+## 0.4.0
+
+Breaking: see "Migrating from 0.3" in the README.
+
+* The looks of iOS 27, measured on its simulator against plain colours and stripes, in light and dark and at each stop of its Liquid Glass slider. `GlassStyle.regular` is its standard glass and the new default: about a third of the page behind stays sharp and the rest is scattered widely, so a busy page loses its contrast without turning to fog (`GlassLook.diffusion`). Dark glass dims bright content, white the most and black not at all (`GlassLook.dim`). `clear` is the glass iOS puts over photos, and `frosted` the Tinted end of the slider.
+* `GlassScope.tinting` sets glass anywhere from clear (0) through regular (0.5) to frosted (1), as the slider does, with `GlassThemeData.lookAt` and `GlassLook.lerp` behind it.
+* The rim bends as on iOS 27: at the very edge it shows what lies as deep as the middle of the glass, mirrored, by the profile measured there. Small glass bends less: neither the bend nor its band reaches past the middle.
+* The rim is lit where the glass faces up or down, along the top and the bottom alike, and the hairline is darkest at the sides, two thirds of a pixel wide. The looks drop the sheen and the colour split, which iOS 27 does not have. The tab bar's resting lens is a plain darker capsule; its rim and shadow come out as it lifts.
+* Frosted glass costs about 40% less at the refraction tier: it and the regular look scatter the page inside the shader, in the one backdrop pass, where frosted glass had also run the engine's blur over the whole screen. Drawn by Impeller's software renderer, a frosted tab bar adds 17.6 ms to a frame where it added 28.9 ms; clear glass costs what it did.
+* The example's glass control is a slider from clear to frosted, and `test/glass_bench_test.dart` measures what the bar adds to a frame at each tier.
+
 ## 0.3.1
 
 * Much less GPU work, most of all on weak phones: the clear look's light frost is taken in the refraction shader, from sixteen reads spread like a Gaussian, instead of the engine's blur composed in front of it. The engine cannot tell where a shader filter reads, so that blur ran over the whole screen at full resolution every frame. Drawn by Impeller's software renderer, the default clear tab bar costs a quarter of what it did, and a held lens under a third, for a look within a pixel of the blur at an edge. Heavier frost, like the frosted look's, is still the engine's blur, which downsamples.

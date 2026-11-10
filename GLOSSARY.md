@@ -1,6 +1,6 @@
 # liquid_glass_shader
 
-Liquid glass for Flutter chrome: glass that refracts, frosts or tints the page behind it, and a tab bar made of that glass that behaves like the iOS 26 one.
+Liquid glass for Flutter chrome: glass that refracts, scatters, frosts or tints the page behind it as on iOS 27, and a tab bar made of that glass that behaves like the iOS one.
 
 ## Glass
 
@@ -9,18 +9,32 @@ Chrome that shows the page behind it, bent at the rim and lightly frosted, never
 _Avoid_: acrylic, blur (a blur is one tier of glass)
 
 **Style**:
-The app-wide choice between clear and frosted glass.
+The app-wide choice between clear, regular and frosted glass.
 _Avoid_: mode, variant
 
+**Tinting**:
+A point between the three styles, from clear at 0 through regular at 0.5 to frosted at 1, as the Liquid Glass slider of iOS 27 sets it.
+_Avoid_: opacity, transparency, level
+
 **Look**:
-The full set of optics for one style: frost, tint, rim curve, bend, colour split, highlight, sheen and saturation.
+The full set of optics for one style: frost, diffusion, dimming, tint, rim curve, bend, colour split, highlight, sheen and saturation.
 _Avoid_: preset, appearance
 
+**Frost**:
+A blur of what is behind the glass.
+
+**Diffusion**:
+The share of what is behind the glass that is scattered widely while the rest stays sharp, so a busy page loses contrast without blurring.
+_Avoid_: blur, haze
+
+**Dimming**:
+Dark glass taking light from bright content behind it, the most from white and none from black.
+
 **Rim**:
-The band along the edge of glass where it curves, bends what is behind it and catches the light.
+The band along the edge of glass where it curves, bends what is behind it and catches the light along the top and the bottom.
 
 **Edge**:
-The thin outer hairline that separates glass from a light page.
+The thin outer hairline that separates glass from a light page, darkest at the sides.
 _Avoid_: border, outline
 
 **Tier**:

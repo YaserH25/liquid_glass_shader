@@ -1,6 +1,6 @@
 # liquid_glass_shader
 
-iOS-style liquid glass for Flutter, drawn by Flutter itself so iOS and Android look the same. With Impeller, glass refracts what is behind it through a fragment shader: the view bends toward the rim, splits into colours at the edge, and catches a thin line of light along the top. Without Impeller it falls back to a frosted blur, and under high contrast to an opaque surface.
+iOS-style liquid glass for Flutter, drawn by Flutter itself, in one fragment shader and no native code, so iOS and Android look the same. Its looks are measured from iOS 27: the standard glass that scatters a busy page without fogging it, the clear glass for photos, and the Clear to Tinted slider between them. With Impeller, glass refracts what is behind it: the view bends hard toward the rim, which mirrors what lies deeper in, and catches a thin line of light along the top and the bottom. Without Impeller it falls back to a frosted blur, and under high contrast to an opaque surface.
 
 It also ships `LiquidTabBar`, a tab bar that behaves like the iOS 26 one: press anywhere to lift a clear lens, drag it across the tabs, and let go to select. It hugs its tabs or fills its width, takes the sizes of iPhone, iPad and landscape bars, stands up as a column at the side of a screen, shrinks into a pill while a page scrolls, and works with a keyboard, a screen reader and right-to-left text.
 
@@ -11,9 +11,11 @@ It also ships `LiquidTabBar`, a tab bar that behaves like the iOS 26 one: press 
 
 ## How it works
 
-`GlassBackdrop` pushes a backdrop filter layer whose filter is `shaders/liquid_glass.frag`. For each pixel inside the glass's rounded rectangle, the shader measures the distance to the edge, follows a dome profile across the rim band, and samples the backdrop displaced inward along the edge normal. Near the rim it samples red and blue at slightly different offsets (dispersion), it can magnify the whole interior, and it raises saturation so what shows through looks vivid. Pixels outside the glass return at once, so the cost stays with the glass's own area. Pixels in the flat middle, farther than the rim band from the edge, take the frost and the saturation and skip the rest. Near the rim the edge direction comes from the rounded rectangle's gradient in closed form, not from extra distance evaluations.
+`GlassBackdrop` pushes a backdrop filter layer whose filter is `shaders/liquid_glass.frag`. For each pixel inside the glass's rounded rectangle, the shader measures the distance to the edge and samples the backdrop displaced inward along the edge normal, by the profile measured on iOS 27: nothing in the middle, and at the very rim as far as the middle of the glass, so the rim shows what lies deep inside, mirrored. It can split red and blue at the rim (dispersion; iOS 27 has none, so the looks leave it off), magnify the whole interior, and it raises saturation so what shows through looks vivid. Pixels outside the glass return at once, so the cost stays with the glass's own area. Pixels in the flat middle, farther than the rim band from the edge, skip the bend and the highlight. Near the rim the edge direction comes from the rounded rectangle's gradient in closed form, not from extra distance evaluations.
 
-A light frost, like the clear look's, is taken in the shader too: sixteen backdrop reads spread like a Gaussian, so no two line up in any direction. It replaces the engine's blur in front of the shader, which, because the engine cannot tell where a shader filter reads, ran over the whole screen at full resolution. A heavier frost, like the frosted look's, is still the engine's blur, which downsamples and stays cheap.
+The standard glass of iOS 27 does not blur the page: behind a tab bar about a third of it stays sharp, and the rest is scattered widely, so stripes behind the bar keep their edges and lose two thirds of their contrast. The shader does the same (`GlassLook.diffusion`) from thirty-two more backdrop reads spread like a Gaussian 14 logical pixels wide. Each pixel turns those reads by its own angle; with them in the same places for every pixel, an edge behind the glass showed as a row of ghost edges. Dark glass also dims bright content (`GlassLook.dim`), white the most and black not at all, so light labels stay readable over a white page.
+
+A light frost, like the clear look's, is taken in the shader too: sixteen backdrop reads spread like a Gaussian, so no two line up in any direction. Neither it nor the diffusion needs the engine's blur in front of the shader, which, because the engine cannot tell where a shader filter reads, runs over the whole screen. A look of your own that asks for a heavy frost still gets the engine's blur, which downsamples.
 
 The shader places the glass by where its box actually is on screen, so scaling, transforms and RTL all line up. When an ancestor moves the glass without repainting it (a page transition sliding a bar), the glass notices after the frame and repaints.
 
@@ -35,12 +37,25 @@ GlassSurface(
 )
 ```
 
-A `GlassScope` is optional. Without one, glass is clear and follows the app's brightness: the Material or Cupertino theme's, or else the platform's. Add one near the root to choose the style, theme or performance guard for everything below it:
+A `GlassScope` is optional. Without one, glass is regular, the standard glass of iOS 27, and follows the app's brightness: the Material or Cupertino theme's, or else the platform's. Add one near the root to choose the style, theme or performance guard for everything below it:
 
 ```dart
 GlassScope(
-  style: GlassStyle.frosted,      // or GlassStyle.clear
+  style: GlassStyle.regular,      // or GlassStyle.clear, GlassStyle.frosted
   theme: GlassThemeData.light(),  // or your own colours
+  child: MyHomePage(),
+)
+```
+
+- `GlassStyle.clear` is for glass over photos and video: a light frost and a faint tint.
+- `GlassStyle.regular` keeps the page in view, partly scattered and tinted.
+- `GlassStyle.frosted` is milky: what is behind reads only as soft colour. It is the Tinted end of the iOS 27 slider.
+
+iOS 27 lets its user slide Liquid Glass from Clear through Default to Tinted. `tinting` does the same for everything below a scope, in place of `style`: 0 is the clear look, 0.5 regular, 1 frosted, and anything between is a blend. The slider's own Clear end still tints a little; it sits near 0.3.
+
+```dart
+GlassScope(
+  tinting: userSetting, // 0 to 1; save it and offer a Slider
   child: MyHomePage(),
 )
 ```
@@ -51,7 +66,7 @@ A surface can insist on a style (`style: GlassStyle.frosted` for text sitting ri
 
 ## The example
 
-The example app is a playground: one colourful page under the bar, with a glass card of controls for the layout, hugging or filling, 3 to 5 tabs, labels, clear or frosted glass, LTR or RTL (with Arabic labels), the theme, minimize on scroll, the tick and a tinted lens. Every picture here comes from it.
+The example app is a playground: one colourful page under the bar, with a glass card of controls for the layout, hugging or filling, 3 to 5 tabs, labels, glass from clear to frosted, LTR or RTL (with Arabic labels), the theme, minimize on scroll, the tick and a tinted lens. Every picture here comes from it.
 
 ```bash
 cd example && flutter run
@@ -249,7 +264,7 @@ A shared copy shows the screen as it was at the first sharing glass painted, so 
 
 ## Theming
 
-`GlassThemeData` holds the clear and frosted looks, the rim, edge hairline, the opaque fill used at the solid tier, and the lens tint and shadows. `GlassThemeData.light()` and `.dark()` are neutral starting points; pass your own to match your palette. A `GlassLook` sets `frost`, `tint`, the rim `band`, `bend`, `dispersion`, the `specular` highlight, `sheen` and `saturation`. A single tab bar can override the lens colours with `LiquidTabBarLens`.
+`GlassThemeData` holds the clear, regular and frosted looks, the rim, edge hairline, the opaque fill used at the solid tier, and the lens tint and shadows. `GlassThemeData.light()` and `.dark()` carry the looks measured on iOS 27; pass your own to match your palette. A `GlassLook` sets `frost`, `diffusion`, `dim`, `tint`, the rim `band`, `bend`, `dispersion`, the `specular` highlight, `sheen` and `saturation`; `GlassLook.lerp` blends two, and `GlassThemeData.lookAt` gives the look at a `tinting`. The rim is lit where the glass faces up or down and its hairline is darkest at the sides, as iOS 27 draws them. A single tab bar can override the lens colours with `LiquidTabBarLens`.
 
 ## Performance
 
@@ -281,6 +296,23 @@ A fast GPU hides what weaker ones pay for. Drawn by Impeller's software renderer
 
 The clear look's frost had cost more than everything else in the glass together. On Impeller, clear refraction now costs about what the blur tier does, so a phone that cannot keep up with one usually cannot with the other; the guard moves on from a tier that did not help within a second when most frames stay late.
 
+The same scenes for 0.4.0, on a faster machine that drew the page alone in 16 ms. The example's `test/glass_bench_test.dart` measures them; 0.3.1 and 0.4.0 ran in turn, nine times each, and each figure is the fastest:
+
+| The bar | 0.3.1 | 0.4.0 |
+| --- | --- | --- |
+| Refraction, clear | 15.6 ms | 15.6 ms |
+| Refraction, clear, the lens held | 27.9 ms | 28.6 ms |
+| Refraction, regular | | 17.1 ms |
+| Refraction, regular, the lens held | | 31.6 ms |
+| Refraction, frosted | 28.9 ms | 17.6 ms |
+| Refraction, frosted, the lens held | 41.0 ms | 30.0 ms |
+| Blur, clear | 19.1 ms | 18.2 ms |
+| Blur, regular | | 15.4 ms |
+| Blur, frosted | 17.2 ms | 17.6 ms |
+| Solid | 1.8 ms | 1.2 ms |
+
+On that renderer a backdrop layer costs about 12 ms whatever its filter does (one that changes nothing took 12.3 ms), and the shader's own work is the small rest. Frosted glass had paid for a second pass, the engine's blur in front of the shader, over the whole screen; it and the regular look now scatter the page inside the shader, in the one pass. The lifted lens is a second backdrop layer, because it refracts the bar's own tabs.
+
 Avoid composing your own filters in front of the glass: a blur in front of a shader filter runs over the whole screen at full resolution.
 
 ## Limitations
@@ -288,9 +320,18 @@ Avoid composing your own filters in front of the glass: a blur in front of a sha
 - Refraction uses one corner radius per surface: the smallest of its corners. The clip still rounds the rest, so a sheet with square bottom corners stays glass all the way down.
 - Glass is for chrome over content. Refraction behind body text makes it harder to read.
 - The light frost taken in the shader comes within a pixel of the engine's Gaussian blur at an edge, but is sixteen reads, not a true Gaussian. Above 6 physical pixels of blur it would show its taps, so heavier frost is the engine's blur.
+- The diffusion is thirty-two reads, turned at each pixel, not a true blur. Over the harshest page, black and white stripes, it leaves a grain of about 1.5% from one physical pixel to the next, under 0.5% once averaged over a logical pixel at 3x; on a low-density screen it may show over such a page.
+- The looks match iOS 27 on flat colour to within a few levels, in light and dark and at each stop of the slider (measured on the iOS 27.0 simulator). Over black and white stripes, light regular glass comes out about 5% darker than Apple's, which averages in brighter. iOS also makes larger glass more opaque and dims it more in dark mode; here a look is the same at every size.
+- iOS 27 shows no colour split at the rim, so the looks set `dispersion` to 0; the lifted lens of the tab bar keeps its own.
 - Inside the lifted lens, iOS tints everything with the selection colour; `LiquidTabBar` only draws the tab under the lens as current.
 - Tabs share the bar's length equally; iOS sizes each tab to its label.
 - Folds reach the bar only where Flutter reports them: on Android today. On the Android emulator's Pixel 10 Pro Fold (API 36 image), apps received no fold even half open, so the fold above is shown flat; the stepping aside is covered by tests.
+
+## Migrating from 0.3
+
+- Glass is regular unless told otherwise: `GlassScope.style` defaults to `GlassStyle.regular`, and so does glass without a scope. Pass `style: GlassStyle.clear` for the glass of 0.3.
+- `GlassThemeData` needs a `regular` look. The looks of `GlassThemeData.light()` and `.dark()` are retuned to iOS 27: a stronger bend, no colour split, no sheen, the rim lit along the top and the bottom, a darker lens with no rim or shadow at rest. Glass that should keep the 0.3 look can pass its old values as a `GlassLook`.
+- The frosted look no longer blurs: it scatters, with `diffusion`. A look of your own with a heavy `frost` still blurs.
 
 ## Migrating from 0.2
 
