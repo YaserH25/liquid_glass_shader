@@ -70,10 +70,20 @@ class PlaygroundControls extends StatelessWidget {
             _row(
               context,
               'Glass',
-              _segments<GlassStyle>(
-                {GlassStyle.clear: 'Clear', GlassStyle.frosted: 'Frosted'},
-                s.glass,
-                (glass) => s.copyWith(glass: glass),
+              // Clear at the start, regular in the middle, frosted at the
+              // end: the Liquid Glass slider of iOS 27.
+              SizedBox(
+                width: 200,
+                child: Slider(
+                  value: s.tinting,
+                  semanticFormatterCallback: (value) => switch (value) {
+                    < 0.25 => 'Clear',
+                    < 0.75 => 'Regular',
+                    _ => 'Frosted',
+                  },
+                  onChanged: (tinting) =>
+                      onChanged(s.copyWith(tinting: tinting)),
+                ),
               ),
             ),
             _row(

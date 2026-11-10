@@ -30,7 +30,7 @@ class _ExampleAppState extends State<ExampleApp> {
       home: Directionality(
         textDirection: _settings.rtl ? TextDirection.rtl : TextDirection.ltr,
         child: GlassScope(
-          style: _settings.glass,
+          tinting: _settings.tinting,
           child: Scaffold(
             body: PlaygroundPage(
               settings: _settings,

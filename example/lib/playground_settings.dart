@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_shader/liquid_glass_shader.dart';
 
 import 'playground_layout.dart';
 
@@ -12,7 +11,7 @@ class PlaygroundSettings {
     this.fill = false,
     this.tabCount = 4,
     this.labels = true,
-    this.glass = GlassStyle.clear,
+    this.tinting = 0.5,
     this.rtl = false,
     this.themeMode = ThemeMode.system,
     this.minimizeOnScroll = true,
@@ -32,8 +31,9 @@ class PlaygroundSettings {
   /// Whether the tabs show their labels.
   final bool labels;
 
-  /// Clear or frosted glass.
-  final GlassStyle glass;
+  /// Where the glass sits between clear (0), regular (0.5) and frosted (1),
+  /// as the Liquid Glass slider of iOS 27 sets it.
+  final double tinting;
 
   /// Whether the app runs right to left, with Arabic labels.
   final bool rtl;
@@ -56,7 +56,7 @@ class PlaygroundSettings {
     bool? fill,
     int? tabCount,
     bool? labels,
-    GlassStyle? glass,
+    double? tinting,
     bool? rtl,
     ThemeMode? themeMode,
     bool? minimizeOnScroll,
@@ -67,7 +67,7 @@ class PlaygroundSettings {
     fill: fill ?? this.fill,
     tabCount: tabCount ?? this.tabCount,
     labels: labels ?? this.labels,
-    glass: glass ?? this.glass,
+    tinting: tinting ?? this.tinting,
     rtl: rtl ?? this.rtl,
     themeMode: themeMode ?? this.themeMode,
     minimizeOnScroll: minimizeOnScroll ?? this.minimizeOnScroll,
