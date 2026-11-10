@@ -165,8 +165,26 @@ void main() {
       await tester.pumpWidget(
         _app(_glass, scoped: false, brightness: Brightness.dark),
       );
-      expect(_tint(tester), GlassThemeData.dark().clear.tint);
+      expect(_tint(tester), GlassThemeData.dark().regular.tint);
       expect(_backdrops(tester), hasLength(1));
+    });
+
+    testWidgets('diffusion and dimming reach the backdrop, by the strength', (
+      tester,
+    ) async {
+      final look = GlassThemeData.dark().regular;
+      await tester.pumpWidget(
+        _app(
+          const GlassSurface(strength: 0.5, child: SizedBox.expand()),
+          style: GlassStyle.regular,
+          brightness: Brightness.dark,
+        ),
+      );
+      final backdrop = tester.widget<GlassBackdrop>(find.byType(GlassBackdrop));
+      expect(look.diffusion, greaterThan(0));
+      expect(look.dim, greaterThan(0));
+      expect(backdrop.diffusion, look.diffusion * 0.5);
+      expect(backdrop.dim, look.dim * 0.5);
     });
 
     testWidgets('a new theme on the scope repaints with its tint', (

@@ -10,6 +10,7 @@ class GlassThemeData {
   /// A theme with the given looks and colours.
   const GlassThemeData({
     required this.clear,
+    required this.regular,
     required this.frosted,
     required this.rim,
     required this.edge,
@@ -19,75 +20,107 @@ class GlassThemeData {
     required this.lensLiftedShadows,
   });
 
-  /// Neutral glass for light pages.
+  /// Neutral glass for light pages, with the looks of iOS 27.
   factory GlassThemeData.light() => const GlassThemeData(
     clear: GlassLook(
       frost: 1.5,
       fallbackFrost: 6,
-      tint: Color(0x14FFFFFF),
-      band: 16,
-      bend: 14,
-      dispersion: 0.15,
-      specular: 0.3,
-      sheen: 0.12,
+      tint: Color(0x20FFFFFF),
+      band: 20,
+      bend: 44,
+      dispersion: 0,
+      specular: 0.5,
+      sheen: 0,
+      saturation: 1.2,
+    ),
+    regular: GlassLook(
+      frost: 0,
+      fallbackFrost: 8,
+      tint: Color(0x87FFFFFF),
+      band: 20,
+      bend: 44,
+      dispersion: 0,
+      specular: 0.24,
+      sheen: 0,
+      saturation: 1.9,
+      diffusion: 0.67,
     ),
     frosted: GlassLook(
-      frost: 30,
+      frost: 0,
       fallbackFrost: 30,
-      tint: Color(0x9EFFFFFF),
+      tint: Color(0xB5FFFFFF),
       band: 16,
       bend: 6,
-      dispersion: 0.05,
-      specular: 0.3,
-      sheen: 0.28,
+      dispersion: 0,
+      specular: 0.24,
+      sheen: 0,
+      saturation: 1.9,
+      diffusion: 0.92,
     ),
-    rim: Color(0xE6FFFFFF),
-    edge: Color(0x1F000000),
+    rim: Color(0x54FFFFFF),
+    edge: Color(0x4D000000),
     solid: Color(0xFFFFFFFF),
-    lensTint: Color(0x99FFFFFF),
-    lensShadows: _lensShadows,
+    lensTint: Color(0x1F000000),
+    lensShadows: [],
     lensLiftedShadows: _lensLiftedShadows,
   );
 
-  /// Neutral glass for dark pages.
+  /// Neutral glass for dark pages, with the looks of iOS 27.
   factory GlassThemeData.dark() => const GlassThemeData(
     clear: GlassLook(
       frost: 1.5,
       fallbackFrost: 6,
-      tint: Color(0x401C1C1E),
-      band: 16,
-      bend: 14,
-      dispersion: 0.15,
-      specular: 0.3,
-      sheen: 0.12,
+      tint: Color(0x20FFFFFF),
+      band: 20,
+      bend: 44,
+      dispersion: 0,
+      specular: 0.5,
+      sheen: 0,
+      saturation: 1.2,
+    ),
+    regular: GlassLook(
+      frost: 0,
+      fallbackFrost: 8,
+      tint: Color(0x20FFFFFF),
+      band: 20,
+      bend: 44,
+      dispersion: 0,
+      specular: 0.18,
+      sheen: 0,
+      saturation: 1.35,
+      diffusion: 0.63,
+      dim: 0.31,
     ),
     frosted: GlassLook(
-      frost: 30,
+      frost: 0,
       fallbackFrost: 30,
-      tint: Color(0xB31C1C1E),
+      tint: Color(0x80404040),
       band: 16,
       bend: 6,
-      dispersion: 0.05,
-      specular: 0.3,
-      sheen: 0.28,
+      dispersion: 0,
+      specular: 0.18,
+      sheen: 0,
+      saturation: 1.35,
+      diffusion: 0.95,
+      dim: 0.4,
     ),
-    rim: Color(0x4DFFFFFF),
-    edge: Color(0x66000000),
+    rim: Color(0x40FFFFFF),
+    edge: Color(0x73000000),
     solid: Color(0xFF1C1C1E),
-    lensTint: Color(0x29FFFFFF),
-    lensShadows: _lensShadows,
+    lensTint: Color(0x40000000),
+    lensShadows: [],
     lensLiftedShadows: _lensLiftedShadows,
   );
 
-  static const _lensShadows = [
-    BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 2)),
-  ];
   static const _lensLiftedShadows = [
     BoxShadow(color: Color(0x29000000), blurRadius: 16, offset: Offset(0, 6)),
   ];
 
   /// See-through glass that refracts at the rim.
   final GlassLook clear;
+
+  /// The standard glass of iOS 27: partly scattered and tinted.
+  final GlassLook regular;
 
   /// Milky glass; what is behind reads only as soft colour.
   final GlassLook frosted;
@@ -114,6 +147,7 @@ class GlassThemeData {
   /// The look for [style].
   GlassLook look(GlassStyle style) => switch (style) {
     GlassStyle.clear => clear,
+    GlassStyle.regular => regular,
     GlassStyle.frosted => frosted,
   };
 
@@ -121,6 +155,7 @@ class GlassThemeData {
   bool operator ==(Object other) =>
       other is GlassThemeData &&
       other.clear == clear &&
+      other.regular == regular &&
       other.frosted == frosted &&
       other.rim == rim &&
       other.edge == edge &&
@@ -132,6 +167,7 @@ class GlassThemeData {
   @override
   int get hashCode => Object.hash(
     clear,
+    regular,
     frosted,
     rim,
     edge,

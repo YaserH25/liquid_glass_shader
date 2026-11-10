@@ -16,6 +16,8 @@ class GlassLook {
     required this.specular,
     required this.sheen,
     this.saturation = 1.8,
+    this.diffusion = 0,
+    this.dim = 0,
   });
 
   /// Blur sigma behind refracting glass.
@@ -46,6 +48,17 @@ class GlassLook {
   /// vivid rather than washed out.
   final double saturation;
 
+  /// The share of what shows through that is scattered widely, 0 to 1; the
+  /// rest stays as sharp as [frost] leaves it. A busy page loses its
+  /// contrast behind the glass without turning to fog, as behind the
+  /// standard glass of iOS 27. Refracting glass only: the fallback blurs by
+  /// [fallbackFrost].
+  final double diffusion;
+
+  /// How much bright content behind refracting glass is dimmed, 0 to 1, so
+  /// light labels stay readable on dark glass over a bright page.
+  final double dim;
+
   @override
   bool operator ==(Object other) =>
       other is GlassLook &&
@@ -57,7 +70,9 @@ class GlassLook {
       other.dispersion == dispersion &&
       other.specular == specular &&
       other.sheen == sheen &&
-      other.saturation == saturation;
+      other.saturation == saturation &&
+      other.diffusion == diffusion &&
+      other.dim == dim;
 
   @override
   int get hashCode => Object.hash(
@@ -70,5 +85,7 @@ class GlassLook {
     specular,
     sheen,
     saturation,
+    diffusion,
+    dim,
   );
 }

@@ -24,14 +24,14 @@ import 'liquid_glass_shader_loader.dart';
 /// in which glass drew a backdrop count: a page covered by another does
 /// not lose its glass for the other page's jank.
 ///
-/// Glass works without a scope: clear style, and [GlassThemeData.light] or
+/// Glass works without a scope: regular style, and [GlassThemeData.light] or
 /// [GlassThemeData.dark] by the app's brightness (a Material or Cupertino
 /// theme's, else the platform's).
 class GlassScope extends StatefulWidget {
   /// Glass settings for [child].
   const GlassScope({
     super.key,
-    this.style = GlassStyle.clear,
+    this.style = GlassStyle.regular,
     this.theme,
     this.guard = const GlassGuard(),
     this.initialCap = GlassQuality.refraction,
@@ -63,9 +63,9 @@ class GlassScope extends StatefulWidget {
   static _GlassScopeData? _of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_GlassScopeData>();
 
-  /// The glass style here (clear when there is no scope).
+  /// The glass style here (regular when there is no scope).
   static GlassStyle styleOf(BuildContext context) =>
-      _of(context)?.style ?? GlassStyle.clear;
+      _of(context)?.style ?? GlassStyle.regular;
 
   /// The glass theme here: the scope's, or the default for the app's
   /// brightness (a Material or Cupertino theme's, else the platform's).

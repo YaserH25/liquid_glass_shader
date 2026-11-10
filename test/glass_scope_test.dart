@@ -338,11 +338,11 @@ void main() {
     expect(GlassScope.qualityOf(_context), GlassQuality.blur);
   });
 
-  testWidgets('without a scope: clear style and the app brightness theme', (
+  testWidgets('without a scope: regular style and the app brightness theme', (
     tester,
   ) async {
     await tester.pumpWidget(_app(scoped: false, brightness: Brightness.dark));
-    expect(GlassScope.styleOf(_context), GlassStyle.clear);
+    expect(GlassScope.styleOf(_context), GlassStyle.regular);
     expect(GlassScope.themeOf(_context), GlassThemeData.dark());
   });
 

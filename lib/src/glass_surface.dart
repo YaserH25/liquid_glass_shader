@@ -12,15 +12,15 @@ import 'glass_scope.dart';
 import 'glass_style.dart';
 import 'liquid_glass_shader_loader.dart';
 
-/// Liquid glass behind [child], in the style of iOS 26, drawn by Flutter so
+/// Liquid glass behind [child], in the style of iOS 27, drawn by Flutter so
 /// Android shows the same thing. Use it for chrome that floats over content
 /// (bars, sheets, floating controls), never for content itself.
 ///
 /// What it draws depends on the quality tier ([GlassScope.qualityOf]):
 /// refracting glass with the shader, a frosted blur without it, or an
 /// opaque surface under high contrast or when the device is struggling.
-/// Its look follows the scope's style unless [style] forces one. A sheen
-/// brightens the top half and a rim catches the light along the edge.
+/// Its look follows the scope's style unless [style] forces one.
+/// A rim catches the light along the top and the bottom edge.
 class GlassSurface extends StatefulWidget {
   /// Glass behind [child].
   const GlassSurface({
@@ -239,17 +239,20 @@ class _GlassSurfaceState extends State<GlassSurface> {
           ),
         ),
         child: DecoratedBox(
-          // The sheen: light falling on the top half of the glass.
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.center,
-              colors: [
-                theme.rim.withValues(alpha: look.sheen * k),
-                theme.rim.withValues(alpha: 0),
-              ],
-            ),
-          ),
+          // The sheen: light falling on the top half of the glass. A look
+          // without one, like those of iOS 27, paints nothing here.
+          decoration: look.sheen * k > 0
+              ? BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.center,
+                    colors: [
+                      theme.rim.withValues(alpha: look.sheen * k),
+                      theme.rim.withValues(alpha: 0),
+                    ],
+                  ),
+                )
+              : const BoxDecoration(),
           // Ink from buttons and list tiles paints on this, above the tint.
           child: Material(
             type: MaterialType.transparency,
@@ -265,6 +268,8 @@ class _GlassSurfaceState extends State<GlassSurface> {
           ? content
           : GlassBackdrop(
               frost: look.frost * k,
+              diffusion: look.diffusion * k,
+              dim: look.dim * k,
               saturation: 1 + (look.saturation - 1) * k,
               fallback: GlassSurface._frostFilter(
                 look.fallbackFrost * k,

@@ -5,6 +5,7 @@
 // A plain `flutter test` has no shader filters, so these tests skip. They
 // live in the example because only an app that depends on the package
 // bundles the shader under the key the package loads it from.
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -117,22 +118,74 @@ double _riseWidth(List<int> row) {
   return widths.reduce((a, b) => a + b) / widths.length;
 }
 
+/// A 300 by 60 capsule of [glass] in the middle of a page of [page], and
+/// the red level of the pixel at each offset from the capsule's top left,
+/// in logical pixels.
+Future<List<int>> _levels(
+  WidgetTester tester, {
+  required Color page,
+  required Widget glass,
+  required List<Offset> at,
+}) async {
+  await tester.pumpWidget(
+    RepaintBoundary(
+      key: _scene,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: ColoredBox(
+          color: page,
+          child: Center(
+            child: SizedBox(
+              width: 300,
+              height: 60,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: glass,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(_scene),
+  );
+  final origin = tester.getTopLeft(find.byType(ClipRRect));
+  late List<int> levels;
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: _dpr);
+    final bytes = (await image.toByteData())!;
+    levels = [
+      for (final offset in at)
+        bytes.getUint8(
+          (((origin.dy + offset.dy) * _dpr).round() * image.width +
+                  ((origin.dx + offset.dx) * _dpr).round()) *
+              4,
+        ),
+    ];
+    image.dispose();
+  });
+  return levels;
+}
+
 void main() {
   testWidgets(
-    'the clear look frosts in the shader; heavy frost is the engine blur',
+    'every look of the theme is the shader alone; heavy frost is the engine blur',
     (tester) async {
       _phone(tester, const Size(1170, 2532));
       await _loadShader(tester);
-      Widget app(GlassStyle style) => MaterialApp(
+      Widget app(GlassStyle style, {GlassLook? look}) => MaterialApp(
         home: GlassScope(
           style: style,
-          child: const Center(
+          child: Center(
             child: SizedBox(
               width: 300,
               height: 60,
               child: GlassSurface(
-                key: ValueKey('glass'),
-                child: SizedBox.expand(),
+                key: const ValueKey('glass'),
+                look: look,
+                child: const SizedBox.expand(),
               ),
             ),
           ),
@@ -141,20 +194,154 @@ void main() {
       final glass = find.byKey(const ValueKey('glass'));
 
       // A blur composed in front of a shader filter runs over the whole
-      // screen at full resolution; the clear look's light frost must not.
-      await tester.pumpWidget(app(GlassStyle.clear));
-      expect(
-        GlassScope.qualityOf(tester.element(glass)),
-        GlassQuality.refraction,
-      );
-      expect('${_filterOf(tester, glass)}', startsWith('ImageFilter.shader'));
+      // screen: it doubled what frosted glass cost. The frost and the
+      // diffusion of every look are taken in the shader instead.
+      for (final style in GlassStyle.values) {
+        await tester.pumpWidget(app(style));
+        expect(
+          GlassScope.qualityOf(tester.element(glass)),
+          GlassQuality.refraction,
+        );
+        expect(
+          '${_filterOf(tester, glass)}',
+          startsWith('ImageFilter.shader'),
+          reason: style.name,
+        );
+      }
 
-      // Heavy frost downsamples, so the engine's blur stays cheap.
-      await tester.pumpWidget(app(GlassStyle.frosted));
+      // A look that asks for a heavy frost still gets the engine's blur,
+      // which downsamples; the shader's few taps would show.
+      await tester.pumpWidget(
+        app(
+          GlassStyle.clear,
+          look: const GlassLook(
+            frost: 30,
+            fallbackFrost: 30,
+            tint: Color(0x9EFFFFFF),
+            band: 16,
+            bend: 6,
+            dispersion: 0,
+            specular: 0.3,
+            sheen: 0,
+          ),
+        ),
+      );
       expect('${_filterOf(tester, glass)}', startsWith('ImageFilter.compose'));
     },
     skip: !_impeller,
   );
+
+  // The standard glass of iOS 27 keeps a third of the page sharp and
+  // scatters the rest: stripes behind it keep their edges and lose two
+  // thirds of their contrast.
+  testWidgets('diffusion lowers contrast and keeps edges sharp', (
+    tester,
+  ) async {
+    _phone(tester, const Size(1080, 1200));
+    await _loadShader(tester);
+    Widget glass(double diffusion) => GlassBackdrop(
+      diffusion: diffusion,
+      band: 1,
+      bend: 0,
+      dispersion: 0,
+      specular: 0,
+      radius: 0,
+      child: const SizedBox.expand(),
+    );
+    double mean(Iterable<int> values) =>
+        values.reduce((a, b) => a + b) / values.length;
+    ({double dark, double light}) stripes(List<int> row) => (
+      dark: mean(row.where((level) => level < 128)),
+      light: mean(row.where((level) => level >= 128)),
+    );
+
+    final sharp = await _middleRow(tester, glass(0));
+    expect(stripes(sharp).dark, lessThan(2));
+    expect(stripes(sharp).light, greaterThan(253));
+
+    final diffused = await _middleRow(tester, glass(2 / 3));
+    final levels = stripes(diffused);
+    expect(levels.light - levels.dark, closeTo(255 / 3, 8));
+    // No pixel strays far from its stripe's level: a blur would leave
+    // pixels half way between the two at every edge.
+    for (final level in diffused) {
+      final stripe = level < 128 ? levels.dark : levels.light;
+      expect((level - stripe).abs(), lessThan(24));
+    }
+    // Each pixel turns its taps by its own angle, so the scatter shows as a
+    // grain that evens out over a few pixels. With the taps in the same
+    // places for every pixel it showed as ghost edges, bands several pixels
+    // wide that do not even out.
+    var worst = 0.0;
+    for (var i = 0; i + 12 <= diffused.length; i++) {
+      final window = diffused.sublist(i, i + 12);
+      if (window.any((level) => level < 128) &&
+          window.any((level) => level >= 128)) {
+        continue;
+      }
+      final stripe = window.first < 128 ? levels.dark : levels.light;
+      worst = math.max(worst, (mean(window) - stripe).abs());
+    }
+    expect(worst, lessThan(8));
+  }, skip: !_impeller);
+
+  testWidgets('the rim catches the light above and below, not at the sides', (
+    tester,
+  ) async {
+    _phone(tester, const Size(1080, 1200));
+    await _loadShader(tester);
+    final [top, bottom, side, middle] = await _levels(
+      tester,
+      page: Colors.black,
+      glass: const GlassBackdrop(
+        band: 16,
+        bend: 0,
+        dispersion: 0,
+        specular: 0.5,
+        child: SizedBox.expand(),
+      ),
+      at: const [
+        Offset(150, 0),
+        Offset(150, 59.7),
+        Offset(0, 30),
+        Offset(150, 30),
+      ],
+    );
+    expect(top, greaterThan(100));
+    expect(bottom, closeTo(top, 6));
+    expect(side, lessThan(4));
+    expect(middle, 0);
+  }, skip: !_impeller);
+
+  testWidgets('dimming takes its share of the light from a white page only', (
+    tester,
+  ) async {
+    _phone(tester, const Size(1080, 1200));
+    await _loadShader(tester);
+    const glass = GlassBackdrop(
+      dim: 0.4,
+      band: 1,
+      bend: 0,
+      dispersion: 0,
+      specular: 0,
+      child: SizedBox.expand(),
+    );
+    const middle = [Offset(150, 30)];
+    final [white] = await _levels(
+      tester,
+      page: Colors.white,
+      glass: glass,
+      at: middle,
+    );
+    expect(white, closeTo(255 * 0.6, 2));
+    final [grey] = await _levels(
+      tester,
+      page: const Color(0xFF808080),
+      glass: glass,
+      at: middle,
+    );
+    expect(grey, closeTo(128 * (1 - 0.4 * 128 / 255), 2));
+  }, skip: !_impeller);
 
   testWidgets('the guard judges each tier by its own frames', (tester) async {
     await _loadShader(tester);

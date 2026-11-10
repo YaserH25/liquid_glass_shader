@@ -11,12 +11,13 @@ import 'liquid_glass_shader_loader.dart';
 /// Fills its box with what lies behind it, seen through liquid glass shaped
 /// as a rounded rectangle filling the box ([radius]; a pill by default):
 /// refracted toward the rim, split into colours there, lit along the top
-/// edge, and lightly frosted. Wrap it in a clip of the same shape.
+/// and bottom edges, lightly frosted, and diffused. Wrap it in a clip of the
+/// same shape.
 ///
-/// The shader only samples inside the glass, and saturation and a light
-/// frost happen in it rather than in separate passes, so its cost stays with
-/// the glass's own area on every GPU. Heavier frost is the engine's blur,
-/// which downsamples wide radii.
+/// The shader only samples inside the glass, and saturation, a light frost
+/// and the diffusion happen in it rather than in separate passes, so its
+/// cost stays with the glass's own area on every GPU. Heavier frost is the
+/// engine's blur, which downsamples wide radii.
 ///
 /// Without the shader, or with [refract] off (a lower quality tier), it
 /// draws [fallback] instead (a frosted blur).
@@ -25,6 +26,8 @@ class GlassBackdrop extends SingleChildRenderObjectWidget {
   const GlassBackdrop({
     super.key,
     this.frost = 0,
+    this.diffusion = 0,
+    this.dim = 0,
     this.saturation = 1,
     this.fallback,
     required this.band,
@@ -53,6 +56,16 @@ class GlassBackdrop extends SingleChildRenderObjectWidget {
   /// Blur sigma of the frost behind the glass (0 keeps it sharp).
   final double frost;
 
+  /// The share of what shows through that is the backdrop scattered widely,
+  /// 0 to 1; the rest stays as sharp as [frost] leaves it. This is how the
+  /// standard glass of iOS 27 quiets a busy page without turning it to fog.
+  final double diffusion;
+
+  /// How much bright backdrop is dimmed, 0 to 1: white behind the glass
+  /// loses this share of its light, black none. Dark glass uses it to keep
+  /// light labels readable over a bright page.
+  final double dim;
+
   /// Colour saturation of what shows through (1 = unchanged).
   final double saturation;
 
@@ -79,6 +92,8 @@ class GlassBackdrop extends SingleChildRenderObjectWidget {
   RenderGlassBackdrop createRenderObject(BuildContext context) =>
       RenderGlassBackdrop(
         frost: frost,
+        diffusion: diffusion,
+        dim: dim,
         saturation: saturation,
         fallback: fallback,
         band: band,
@@ -99,6 +114,8 @@ class GlassBackdrop extends SingleChildRenderObjectWidget {
   ) {
     renderObject
       ..frost = frost
+      ..diffusion = diffusion
+      ..dim = dim
       ..saturation = saturation
       ..fallback = fallback
       ..band = band
@@ -119,6 +136,8 @@ class RenderGlassBackdrop extends RenderProxyBox {
   /// Creates the render object; [GlassBackdrop] documents each value.
   RenderGlassBackdrop({
     required this._frost,
+    required this._diffusion,
+    required this._dim,
     required this._saturation,
     required this._fallback,
     required this._band,
@@ -144,6 +163,13 @@ class RenderGlassBackdrop extends RenderProxyBox {
 
   double _frost;
   set frost(double value) => _set(_frost != value, () => _frost = value);
+
+  double _diffusion;
+  set diffusion(double value) =>
+      _set(_diffusion != value, () => _diffusion = value);
+
+  double _dim;
+  set dim(double value) => _set(_dim != value, () => _dim = value);
 
   double _saturation;
   set saturation(double value) =>
@@ -190,6 +216,10 @@ class RenderGlassBackdrop extends RenderProxyBox {
   /// stays cheap.
   @visibleForTesting
   static const double maxShaderFrost = 6;
+
+  /// How widely the diffusion scatters the backdrop, as a blur sigma in
+  /// logical pixels: the spread measured behind the tab bar of iOS 27.
+  static const double _diffusionSpread = 14;
 
   /// Two shaders used in turn. A filter made from the same shader compares
   /// equal, so the layer would keep the last frame's uniforms; alternating
@@ -294,8 +324,11 @@ class RenderGlassBackdrop extends RenderProxyBox {
     put(rect.bottom * ratio);
     final scale = rect.height / (size.height == 0 ? 1 : size.height);
     put(math.min(_radius * scale, rect.shortestSide / 2) * ratio);
-    put(_band * scale * ratio);
-    put(_bend * scale * ratio);
+    // Neither reaches past the middle of the glass, so small glass bends
+    // less, as on iOS, and never shows what lies beyond its far side.
+    final half = rect.shortestSide / 2;
+    put(math.min(_band * scale, half) * ratio);
+    put(math.min(_bend * scale, half) * ratio);
     put(_dispersion);
     put(_magnify);
     put(_specular);
@@ -303,6 +336,9 @@ class RenderGlassBackdrop extends RenderProxyBox {
     final frost = _frost * scale * ratio;
     final frostInShader = frost <= maxShaderFrost;
     put(frostInShader ? frost : 0);
+    put(_diffusion);
+    put(_diffusionSpread * scale * ratio);
+    put(_dim);
 
     final refraction = ui.ImageFilter.shader(shader);
     if (_frost <= 0 || frostInShader) return refraction;
