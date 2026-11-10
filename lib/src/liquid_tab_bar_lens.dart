@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 /// How a `LiquidTabBar`'s lens looks: its tint and shadows, and its size and
-/// optics once lifted under a finger. The defaults match the iOS 26 tab bar;
-/// colours not given come from the `GlassScope`'s theme.
+/// optics once lifted under a finger. The defaults follow the iOS tab bar:
+/// its lifted lens bends only a thin rim, well clear of the icon and label
+/// it magnifies, and splits no colours. Colours not given come from the
+/// `GlassScope`'s theme.
 @immutable
 class LiquidTabBarLens {
   /// A lens; every value has a default.
@@ -11,9 +13,9 @@ class LiquidTabBarLens {
     this.liftedExtent = 1.18,
     this.liftedThickness = 1.3,
     this.magnification = 1.17,
-    this.band = 22,
-    this.bend = 18,
-    this.dispersion = 0.5,
+    this.band = 12,
+    this.bend = 6,
+    this.dispersion = 0,
     this.specular = 0.55,
     this.tint,
     this.shadows,
@@ -38,7 +40,8 @@ class LiquidTabBarLens {
   final double band;
 
   /// How far the lifted lens bends what is under it at the rim, in logical
-  /// pixels.
+  /// pixels. The rim shows what lies this far in: a bend that reaches the
+  /// tab's icon or label shows a mirrored copy of it at the edge.
   final double bend;
 
   /// Colour split at the lifted lens's rim, as a fraction of [bend].

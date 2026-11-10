@@ -322,7 +322,7 @@ Avoid composing your own filters in front of the glass: a blur in front of a sha
 - The light frost taken in the shader comes within a pixel of the engine's Gaussian blur at an edge, but is sixteen reads, not a true Gaussian. Above 6 physical pixels of blur it would show its taps, so heavier frost is the engine's blur.
 - The diffusion is thirty-two reads, turned at each pixel, not a true blur. Over the harshest page, black and white stripes, it leaves a grain of about 1.5% from one physical pixel to the next, under 0.5% once averaged over a logical pixel at 3x; on a low-density screen it may show over such a page.
 - The looks match iOS 27 on flat colour to within a few levels, in light and dark and at each stop of the slider (measured on the iOS 27.0 simulator). Over black and white stripes, light regular glass comes out about 5% darker than Apple's, which averages in brighter. iOS also makes larger glass more opaque and dims it more in dark mode; here a look is the same at every size.
-- iOS 27 shows no colour split at the rim, so the looks set `dispersion` to 0; the lifted lens of the tab bar keeps its own.
+- iOS 27 shows no colour split at the rim, so the looks and the tab bar's lifted lens set `dispersion` to 0.
 - Inside the lifted lens, iOS tints everything with the selection colour; `LiquidTabBar` only draws the tab under the lens as current.
 - Tabs share the bar's length equally; iOS sizes each tab to its label.
 - Folds reach the bar only where Flutter reports them: on Android today. On the Android emulator's Pixel 10 Pro Fold (API 36 image), apps received no fold even half open, so the fold above is shown flat; the stepping aside is covered by tests.

@@ -313,6 +313,101 @@ void main() {
     expect(middle, 0);
   }, skip: !_impeller);
 
+  // The lifted lens once bent its rim so far that the edge showed a
+  // mirrored copy of the tab's own icon and label, split into colours:
+  // blue and pink bands above and below a tab on a light page.
+  testWidgets('the lifted lens shows no copy of its tab at the rim, and no '
+      'colour of its own', (tester) async {
+    _phone(tester, const Size(1206, 600));
+    await _loadShader(tester);
+    const ink = Color(0xFF404040);
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: _scene,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: ColoredBox(
+            color: const Color(0xFFF2F2F2),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(21, 0, 21, 40),
+                child: LiquidTabBar(
+                  tabCount: 4,
+                  selectedIndex: 0,
+                  onSelected: (_) {},
+                  onTick: null,
+                  // An icon over a label, both grey: any colour is the
+                  // lens's own.
+                  tabBuilder: (context, index, active) => const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox.square(
+                        dimension: 22,
+                        child: ColoredBox(color: ink),
+                      ),
+                      SizedBox(height: 5),
+                      SizedBox(
+                        width: 34,
+                        height: 7,
+                        child: ColoredBox(color: ink),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final finger = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('liquid_tab_0'))),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final lens = tester.getRect(
+      find.byKey(const Key('liquid_tab_bar_lifted_lens')),
+    );
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(_scene),
+    );
+    var mostColour = 0;
+    final rim = <int>[];
+    await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: _dpr);
+      final bytes = (await image.toByteData())!;
+      int at(int x, int y, int channel) =>
+          bytes.getUint8((y * image.width + x) * 4 + channel);
+      final left = (lens.left * _dpr).ceil();
+      final right = (lens.right * _dpr).floor();
+      final top = (lens.top * _dpr).ceil();
+      final bottom = (lens.bottom * _dpr).floor();
+      for (var y = top; y < bottom; y++) {
+        for (var x = left; x < right; x++) {
+          final channels = [at(x, y, 0), at(x, y, 1), at(x, y, 2)]..sort();
+          mostColour = math.max(mostColour, channels.last - channels.first);
+        }
+      }
+      // The red level down the middle of the lens, within 8 logical pixels
+      // of its top and of its bottom edge: clear of the icon and the label.
+      final middle = (lens.center.dx * _dpr).round();
+      final reach = (8 * _dpr).round();
+      for (var y = top + 3; y < top + reach; y++) {
+        rim.add(at(middle, y, 0));
+      }
+      for (var y = bottom - reach; y < bottom - 3; y++) {
+        rim.add(at(middle, y, 0));
+      }
+      image.dispose();
+    });
+    await finger.up();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(mostColour, lessThan(12));
+    expect(rim.reduce(math.min), greaterThan(200));
+  }, skip: !_impeller);
+
   testWidgets('dimming takes its share of the light from a white page only', (
     tester,
   ) async {

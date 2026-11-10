@@ -1,3 +1,7 @@
+## 0.4.1
+
+* Fixed: the lifted lens of the tab bar showed blue and pink bands along its top and bottom over a light page. Its rim bent far enough to show a mirrored copy of the tab's own icon and label, split into colours; the stronger bend of 0.4.0 doubled what had been a faint line. The default lens now bends a thin rim only (`LiquidTabBarLens.band` 12, `bend` 6) and splits no colours (`dispersion` 0), as the lens of iOS 27 does.
+
 ## 0.4.0
 
 Breaking: see "Migrating from 0.3" in the README.
