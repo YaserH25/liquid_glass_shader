@@ -59,6 +59,25 @@ class GlassLook {
   /// light labels stay readable on dark glass over a bright page.
   final double dim;
 
+  /// The look between [a] and [b] at [t], 0 to 1.
+  static GlassLook lerp(GlassLook a, GlassLook b, double t) {
+    // Exact at both ends, so the look at 0 or 1 equals a or b.
+    double mix(double from, double to) => from * (1 - t) + to * t;
+    return GlassLook(
+      frost: mix(a.frost, b.frost),
+      fallbackFrost: mix(a.fallbackFrost, b.fallbackFrost),
+      tint: Color.lerp(a.tint, b.tint, t)!,
+      band: mix(a.band, b.band),
+      bend: mix(a.bend, b.bend),
+      dispersion: mix(a.dispersion, b.dispersion),
+      specular: mix(a.specular, b.specular),
+      sheen: mix(a.sheen, b.sheen),
+      saturation: mix(a.saturation, b.saturation),
+      diffusion: mix(a.diffusion, b.diffusion),
+      dim: mix(a.dim, b.dim),
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       other is GlassLook &&

@@ -343,6 +343,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_app(scoped: false, brightness: Brightness.dark));
     expect(GlassScope.styleOf(_context), GlassStyle.regular);
+    expect(GlassScope.lookOf(_context), GlassThemeData.dark().regular);
     expect(GlassScope.themeOf(_context), GlassThemeData.dark());
   });
 

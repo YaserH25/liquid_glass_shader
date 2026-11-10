@@ -19,7 +19,7 @@ import 'liquid_glass_shader_loader.dart';
 /// What it draws depends on the quality tier ([GlassScope.qualityOf]):
 /// refracting glass with the shader, a frosted blur without it, or an
 /// opaque surface under high contrast or when the device is struggling.
-/// Its look follows the scope's style unless [style] forces one.
+/// Its look follows the scope's style or tinting unless [style] forces one.
 /// A rim catches the light along the top and the bottom edge.
 class GlassSurface extends StatefulWidget {
   /// Glass behind [child].
@@ -43,7 +43,8 @@ class GlassSurface extends StatefulWidget {
   /// The glass's corners; none makes a pill.
   final BorderRadiusGeometry? borderRadius;
 
-  /// Forces a style where readability needs it; none follows the scope.
+  /// Forces a style where readability needs it; none follows the scope's
+  /// style, or its tinting when it has one.
   final GlassStyle? style;
 
   /// A custom look; overrides [style].
@@ -215,7 +216,11 @@ class _GlassSurfaceState extends State<GlassSurface> {
     final quality = GlassScope.qualityOf(context);
     final theme = GlassScope.themeOf(context);
     final look =
-        widget.look ?? theme.look(widget.style ?? GlassScope.styleOf(context));
+        widget.look ??
+        switch (widget.style) {
+          final style? => theme.look(style),
+          null => GlassScope.lookOf(context),
+        };
     final k = widget.strength.clamp(0.0, 1.0);
     final radius = (widget.borderRadius ?? BorderRadius.circular(999)).resolve(
       Directionality.of(context),

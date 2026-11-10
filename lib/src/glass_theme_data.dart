@@ -151,6 +151,17 @@ class GlassThemeData {
     GlassStyle.frosted => frosted,
   };
 
+  /// The look at a point between the three: [clear] at 0, [regular] at 0.5
+  /// and [frosted] at 1, as the Liquid Glass slider of iOS 27 runs from
+  /// clear to tinted. The slider's own clear end still tints a little: it
+  /// sits near 0.3.
+  GlassLook lookAt(double tinting) {
+    final t = tinting.clamp(0.0, 1.0);
+    return t < 0.5
+        ? GlassLook.lerp(clear, regular, t * 2)
+        : GlassLook.lerp(regular, frosted, t * 2 - 1);
+  }
+
   @override
   bool operator ==(Object other) =>
       other is GlassThemeData &&

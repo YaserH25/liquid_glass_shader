@@ -10,6 +10,7 @@ final _light = GlassThemeData.light();
 Widget _app(
   Widget child, {
   GlassStyle style = GlassStyle.clear,
+  double? tinting,
   GlassThemeData? theme,
   bool highContrast = false,
   bool scoped = true,
@@ -21,7 +22,12 @@ Widget _app(
     home: MediaQuery(
       data: MediaQueryData(highContrast: highContrast),
       child: scoped
-          ? GlassScope(style: style, theme: theme, child: body)
+          ? GlassScope(
+              style: style,
+              tinting: tinting,
+              theme: theme,
+              child: body,
+            )
           : body,
     ),
   );
@@ -169,6 +175,32 @@ void main() {
       expect(_backdrops(tester), hasLength(1));
     });
 
+    testWidgets("the scope's tinting picks a look between the theme's three", (
+      tester,
+    ) async {
+      for (final (tinting, tint) in [
+        (0.0, _light.clear.tint),
+        (0.5, _light.regular.tint),
+        (1.0, _light.frosted.tint),
+        (0.75, Color.lerp(_light.regular.tint, _light.frosted.tint, 0.5)),
+      ]) {
+        await tester.pumpWidget(_app(_glass, tinting: tinting));
+        expect(_tint(tester), tint, reason: 'tinting $tinting');
+      }
+    });
+
+    testWidgets('a surface that forces a style ignores the tinting', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(
+          const GlassSurface(style: GlassStyle.clear, child: SizedBox.expand()),
+          tinting: 1,
+        ),
+      );
+      expect(_tint(tester), _light.clear.tint);
+    });
+
     testWidgets('diffusion and dimming reach the backdrop, by the strength', (
       tester,
     ) async {
@@ -185,6 +217,16 @@ void main() {
       expect(look.dim, greaterThan(0));
       expect(backdrop.diffusion, look.diffusion * 0.5);
       expect(backdrop.dim, look.dim * 0.5);
+    });
+
+    test('a look between two takes each value part of the way', () {
+      final clear = _light.clear, regular = _light.regular;
+      expect(GlassLook.lerp(clear, regular, 0), clear);
+      expect(GlassLook.lerp(clear, regular, 1), regular);
+      final half = GlassLook.lerp(clear, regular, 0.5);
+      expect(half.diffusion, regular.diffusion / 2);
+      expect(half.frost, (clear.frost + regular.frost) / 2);
+      expect(half.tint, Color.lerp(clear.tint, regular.tint, 0.5));
     });
 
     testWidgets('a new theme on the scope repaints with its tint', (

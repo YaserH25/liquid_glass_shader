@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'active_glass.dart';
 import 'glass_guard.dart';
+import 'glass_look.dart';
 import 'glass_quality.dart';
 import 'glass_style.dart';
 import 'glass_theme_data.dart';
@@ -32,6 +33,7 @@ class GlassScope extends StatefulWidget {
   const GlassScope({
     super.key,
     this.style = GlassStyle.regular,
+    this.tinting,
     this.theme,
     this.guard = const GlassGuard(),
     this.initialCap = GlassQuality.refraction,
@@ -41,6 +43,11 @@ class GlassScope extends StatefulWidget {
 
   /// How glass below looks unless a surface forces a style.
   final GlassStyle style;
+
+  /// A look between the theme's three instead of [style], as the Liquid
+  /// Glass slider of iOS 27 sets it: 0 is clear, 0.5 regular and 1 frosted
+  /// ([GlassThemeData.lookAt]). None follows [style].
+  final double? tinting;
 
   /// Colours and looks; none follows the app's brightness.
   final GlassThemeData? theme;
@@ -66,6 +73,16 @@ class GlassScope extends StatefulWidget {
   /// The glass style here (regular when there is no scope).
   static GlassStyle styleOf(BuildContext context) =>
       _of(context)?.style ?? GlassStyle.regular;
+
+  /// The look of glass here that forces none: the theme's look at the
+  /// scope's [tinting], or else for its [style].
+  static GlassLook lookOf(BuildContext context) {
+    final theme = themeOf(context);
+    final tinting = _of(context)?.tinting;
+    return tinting == null
+        ? theme.look(styleOf(context))
+        : theme.lookAt(tinting);
+  }
 
   /// The glass theme here: the scope's, or the default for the app's
   /// brightness (a Material or Cupertino theme's, else the platform's).
@@ -314,6 +331,7 @@ class GlassScopeState extends State<GlassScope> {
     backdropKey: _backdropKey,
     child: _GlassScopeData(
       style: widget.style,
+      tinting: widget.tinting,
       theme: widget.theme,
       cap: _cap,
       child: widget.child,
@@ -324,16 +342,21 @@ class GlassScopeState extends State<GlassScope> {
 class _GlassScopeData extends InheritedWidget {
   const _GlassScopeData({
     required this.style,
+    required this.tinting,
     required this.theme,
     required this.cap,
     required super.child,
   });
 
   final GlassStyle style;
+  final double? tinting;
   final GlassThemeData? theme;
   final GlassQuality cap;
 
   @override
   bool updateShouldNotify(_GlassScopeData old) =>
-      old.style != style || old.theme != theme || old.cap != cap;
+      old.style != style ||
+      old.tinting != tinting ||
+      old.theme != theme ||
+      old.cap != cap;
 }
