@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_shader/liquid_glass_shader.dart';
@@ -13,6 +16,34 @@ List<RecordedInvocation> _strokes(GlassRimPainter painter) {
   return canvas.invocations
       .where((call) => call.invocation.memberName == #drawRRect)
       .toList();
+}
+
+/// How opaque [painter] leaves the outermost pixel of the glass at the
+/// middle of its top, of its bottom and of its left side.
+Future<({double top, double bottom, double side})> _alphas(
+  WidgetTester tester,
+  GlassRimPainter painter,
+) async {
+  final recorder = ui.PictureRecorder();
+  painter.paint(Canvas(recorder), _size);
+  final picture = recorder.endRecording();
+  late ByteData bytes;
+  await tester.runAsync(() async {
+    final image = await picture.toImage(
+      _size.width.toInt(),
+      _size.height.toInt(),
+    );
+    bytes = (await image.toByteData())!;
+    image.dispose();
+  });
+  picture.dispose();
+  double alpha(int x, int y) =>
+      bytes.getUint8((y * _size.width.toInt() + x) * 4 + 3) / 255;
+  return (
+    top: alpha(100, 0),
+    bottom: alpha(100, _size.height.toInt() - 1),
+    side: alpha(0, 30),
+  );
 }
 
 /// The rim painters on the glass surface.
@@ -65,6 +96,30 @@ void main() {
       ),
       hasLength(1),
     );
+  });
+
+  // iOS 27 lights the rim where it faces up or down, and darkens the
+  // hairline where it faces sideways.
+  testWidgets('the rim is lit above and below, the edge dark at the sides', (
+    tester,
+  ) async {
+    const rim = Color(0x54FFFFFF), edge = Color(0x4D000000);
+    final lit = await _alphas(
+      tester,
+      GlassRimPainter(borderRadius: _radius, rim: rim),
+    );
+    expect(lit.top, closeTo(rim.a, 0.02));
+    expect(lit.bottom, closeTo(rim.a, 0.02));
+    expect(lit.side, 0);
+
+    final dark = await _alphas(
+      tester,
+      GlassRimPainter(borderRadius: _radius, edge: edge),
+    );
+    expect(dark.side, greaterThan(0.1));
+    expect(dark.top, greaterThan(0));
+    expect(dark.top, lessThan(dark.side / 2));
+    expect(dark.bottom, closeTo(dark.top, 0.02));
   });
 
   test('faded out, strokes nothing', () {

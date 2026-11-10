@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/rendering.dart';
 
-/// Strokes the rim of rounded glass: [rim] at the top fading toward the
-/// bottom, and an optional outer [edge] hairline all round, both faded by
-/// [opacity].
+/// Strokes the rim of rounded glass as iOS 27 lights it: [rim] where the
+/// glass faces up or down, along the top and the bottom, and none at the
+/// sides; and an optional outer [edge] hairline, darkest at the sides and
+/// faint along the top and the bottom. Both are faded by [opacity].
 class GlassRimPainter extends CustomPainter {
   /// Strokes the rim of glass shaped by [borderRadius].
   GlassRimPainter({
@@ -15,48 +18,72 @@ class GlassRimPainter extends CustomPainter {
   /// The glass's corners.
   final BorderRadius borderRadius;
 
-  /// The rim's colour at the top, or none; it fades toward the bottom.
+  /// The rim's colour along the top and the bottom, or none.
   final Color? rim;
 
-  /// The outer hairline, or none.
+  /// The outer hairline's colour at the sides, or none.
   final Color? edge;
 
   /// How much of the rim and hairline shows, 0 to 1.
   final double opacity;
+
+  /// The share of the hairline's colour left along the top and the bottom.
+  static const double _edgeFacingUp = 0.3;
+
+  static const double _edgeWidth = 2 / 3;
 
   Color _faded(Color color, double alpha) =>
       color.withValues(alpha: alpha * opacity);
 
   @override
   void paint(Canvas canvas, Size size) {
-    // The hairlines sit half a pixel inside the glass; under one pixel there
-    // is no room for them, and scaleRadii would fail.
-    if (size.width < 1 || size.height < 1 || opacity <= 0) return;
+    // The hairlines sit just inside the glass; under two pixels there is no
+    // room for them, and scaleRadii would fail.
+    if (size.width < 2 || size.height < 2 || opacity <= 0) return;
     final rect = Offset.zero & size;
-    final rrect = borderRadius.toRRect(rect.deflate(0.5)).scaleRadii();
     final edge = this.edge;
+    // The hairline is two thirds of a pixel wide, as on iOS, with the rim
+    // right inside it.
+    final outline = edge == null ? 0.0 : _edgeWidth;
+    final rrect = borderRadius.toRRect(rect).scaleRadii();
+    // The rim turns from facing up to facing sideways down each corner, so
+    // the light fades over the corner's height, top and bottom.
+    final turn =
+        ([
+                  rrect.tlRadiusY,
+                  rrect.trRadiusY,
+                  rrect.blRadiusY,
+                  rrect.brRadiusY,
+                ].reduce(math.max) /
+                size.height)
+            .clamp(0.5 / size.height, 0.5);
+    Shader facing(Color up, Color sideways) => LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [up, sideways, sideways, up],
+      stops: [0, turn * 0.8, 1 - turn * 0.8, 1],
+    ).createShader(rect);
+
     if (edge != null) {
       canvas.drawRRect(
-        rrect,
+        rrect.deflate(outline / 2),
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
-          ..color = _faded(edge, edge.a),
+          ..strokeWidth = outline
+          ..shader = facing(
+            _faded(edge, edge.a * _edgeFacingUp),
+            _faded(edge, edge.a),
+          ),
       );
     }
     final rim = this.rim;
     if (rim == null) return;
     canvas.drawRRect(
-      rrect.deflate(edge == null ? 0 : 0.75),
+      rrect.deflate(outline + 0.5),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_faded(rim, rim.a), _faded(rim, 0.15), _faded(rim, 0.4)],
-          stops: const [0, 0.6, 1],
-        ).createShader(rect),
+        ..shader = facing(_faded(rim, rim.a), _faded(rim, 0)),
     );
   }
 

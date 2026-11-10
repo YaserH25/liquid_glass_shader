@@ -3,11 +3,11 @@ import 'package:flutter/widgets.dart';
 import 'glass_rim_painter.dart';
 import 'glass_scope.dart';
 
-/// The selected tab's lens: a brighter capsule of glass with its own rim.
+/// The selected tab's lens: at rest a plain tinted capsule, as on iOS 27.
 ///
 /// [lift] (0 at rest, 1 under a finger) clears the tint, so the lens reads
-/// as clear glass, and deepens its shadow. Colours and shadows not given
-/// come from [GlassScope.themeOf].
+/// as clear glass, brings out its rim and deepens its shadow. Colours and
+/// shadows not given come from [GlassScope.themeOf].
 class GlassLens extends StatelessWidget {
   /// A lens filling its box.
   const GlassLens({
@@ -84,7 +84,7 @@ class GlassLens extends StatelessWidget {
             painter: GlassRimPainter(
               borderRadius: radius,
               rim: theme.rim,
-              opacity: shown,
+              opacity: shown * t,
             ),
           ),
         ),

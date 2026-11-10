@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liquid_glass_shader/liquid_glass_shader.dart';
+import 'package:liquid_glass_shader/src/glass_rim_painter.dart';
 import 'package:liquid_glass_shader/src/tab_bar/lifted_lens.dart';
 import 'package:liquid_glass_shader/src/tab_bar/resting_lens_row.dart';
 
@@ -40,6 +41,28 @@ void main() {
     expect(_fill(tester), theme.rim.withValues(alpha: 0.12));
   });
 
+  // On iOS 27 the resting lens is a plain tinted capsule; its rim shows
+  // only as it lifts.
+  testWidgets('the rim comes out with the lift', (tester) async {
+    double rim() => tester
+        .widgetList<CustomPaint>(
+          find.descendant(
+            of: find.byType(GlassLens),
+            matching: find.byType(CustomPaint),
+          ),
+        )
+        .map((paint) => paint.painter)
+        .whereType<GlassRimPainter>()
+        .single
+        .opacity;
+    await tester.pumpWidget(_lens(0));
+    expect(rim(), 0);
+    await tester.pumpWidget(_lens(0.5));
+    expect(rim(), 0.5);
+    await tester.pumpWidget(_lens(1));
+    expect(rim(), 1);
+  });
+
   testWidgets('a tint and shadows of its own override the theme', (
     tester,
   ) async {
@@ -70,12 +93,13 @@ void main() {
   });
 
   group('fading', () {
+    const rest = BoxShadow(color: Color(0x33000000), blurRadius: 3);
     Widget lens(double opacity) => MaterialApp(
       home: Center(
         child: SizedBox(
           width: 100,
           height: 60,
-          child: GlassLens(opacity: opacity),
+          child: GlassLens(opacity: opacity, shadows: const [rest]),
         ),
       ),
     );
@@ -96,7 +120,6 @@ void main() {
           .map((box) => (box.decoration as BoxDecoration).boxShadow)
           .firstWhere((s) => s != null && s.isNotEmpty)!
           .single;
-      final rest = theme.lensShadows.single;
       expect(shadow.color.a, closeTo(rest.color.a * 0.5, 1e-6));
       expect(shadow.blurRadius, rest.blurRadius);
     });
